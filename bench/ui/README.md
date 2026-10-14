@@ -41,7 +41,7 @@ BENCH_ROWS=1000 BENCH_RUNS=3 BENCH_ROUNDS=1 BENCH_WARMUPS=1 BENCH_BOOT_RUNS=1 BE
 | `BENCH_BOOT_RUNS`       | 2                   | Mount samples per scale (after a discarded navigation)      |
 | `BENCH_ROWS`            | `100,1000,10000`    | Table/signal scales                                         |
 | `BENCH_DURATION_MS`     | 1000                | Sustained-throughput window per scale and round             |
-| `BENCH_STATIC_REPS`       | 3                   | Static mount/dispose repetitions per scale and round        |
+| `BENCH_STATIC_REPS`     | 3                   | Static mount/dispose repetitions per scale and round        |
 | `BENCH_SEED`            | 12345               | Fixed seed: same order every run, required for hillclimbing |
 | `BENCH_RESULTS_DIR`     | `results/`          | Output directory                                            |
 | `BENCH_EXECUTABLE_PATH` | Playwright Chromium | Compatible browser override                                 |
@@ -73,6 +73,8 @@ are DOM-completion proxies, not bare renderer CPU times.
 4. Keep the change only on consistent round-level wins: target medians improve
    ≥5% in every round with no other case regressing ≥5%. Otherwise revert.
 5. Record the verdict (change, deltas, seed, browser version) in the run log.
+6. If a run combines multiple unmeasured changes and regresses, bisect with
+   `git log --oneline`, rebuilding and re-running at each candidate commit.
 
 `results/` is gitignored. Do not compare across browsers, headed/headless
 modes, machines, or seeds. One full `bun run bench` with defaults before
