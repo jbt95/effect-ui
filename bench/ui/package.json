@@ -1,0 +1,23 @@
+{
+  "name": "@effect/ui-benchmarks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "serve": "bun run scripts/serve.ts",
+    "bench": "bun run scripts/bench.ts",
+    "compare": "bun run scripts/compare.ts",
+    "test": "bun test test/",
+    "typecheck:app": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "bun-types": "1.4.2",
+    "effect": "4.0.3",
+    "happy-dom": "20.14.6",
+    "playwright": "1.64.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.4"
+  }
+}

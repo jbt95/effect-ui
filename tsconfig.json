@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@effect/ui",
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@effect/ui": ["./src/Index.ts"],
+      "@effect/ui/http": ["./src/Http.ts"],
+      "@effect/ui/jsx-runtime": ["./src/JsxRuntime.ts"],
+      "@effect/ui/jsx-dev-runtime": ["./src/JsxDevRuntime.ts"],
+      "@effect/ui/testing": ["./src/Testing.ts"]
+    }
+  },
+  "include": [
+    "src",
+    "example",
+    "test",
+    "bench/Reactivity.ts",
+    "tools/BrowserSmoke.ts",
+    "tools/CleanDist.ts",
+    "vite.config.ts"
+  ]
+}

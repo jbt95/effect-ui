@@ -1,0 +1,83 @@
+{
+  "name": "@effect/ui",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A client-side UI library with Effect-powered components and fine-grained signals.",
+  "keywords": [
+    "browser",
+    "dom",
+    "effect",
+    "jsx",
+    "reactivity",
+    "ui"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist/*.js",
+    "dist/*.d.ts",
+    "LICENSE",
+    "README.md",
+    "docs/",
+    "example/"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/Index.js",
+  "module": "./dist/Index.js",
+  "browser": "./dist/Index.js",
+  "types": "./dist/Index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/Index.d.ts",
+      "import": "./dist/Index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/JsxRuntime.d.ts",
+      "import": "./dist/JsxRuntime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/JsxDevRuntime.d.ts",
+      "import": "./dist/JsxDevRuntime.js"
+    },
+    "./testing": {
+      "types": "./dist/Testing.d.ts",
+      "import": "./dist/Testing.js"
+    },
+    "./http": {
+      "types": "./dist/Http.d.ts",
+      "import": "./dist/Http.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "bun run build:lib && vite build",
+    "build:lib": "bun run tools/CleanDist.ts && tsc -p tsconfig.build.json",
+    "prepack": "bun run build:lib",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "typecheck:package": "bun run build:lib && tsc -p tsconfig.package.json",
+    "lint": "oxlint -c oxlint.config.ts",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "test": "vitest run",
+    "test:browser": "bun run tools/BrowserSmoke.ts",
+    "bench:runtime": "bun run bench/Reactivity.ts",
+    "ci": "bun run format:check && bun run typecheck && bun run lint && bun run test && bun run typecheck:package && bun run build"
+  },
+  "dependencies": {
+    "effect": "^4.0.0"
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "1.87.0",
+    "@types/node": "^26.6.5",
+    "happy-dom": "^20.14.6",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}

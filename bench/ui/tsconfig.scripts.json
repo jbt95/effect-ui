@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@effect/ui",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node", "bun-types"],
+    "paths": {
+      "@effect/ui": ["../../src/Index.ts"],
+      "@effect/ui/jsx-runtime": ["../../src/JsxRuntime.ts"],
+      "@effect/ui/jsx-dev-runtime": ["../../src/JsxDevRuntime.ts"]
+    }
+  },
+  "include": ["scripts/**/*.ts", "test/**/*.ts"]
+}
