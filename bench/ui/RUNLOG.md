@@ -66,6 +66,16 @@ work), direct Desired staging, removals collected as entries with inline
 map deletion. Target: the per-commit floor on every op (delete/swap first).
 - Verdict: PENDING — awaiting fast-loop A/B vs baseline.
 
+## 005 — ordered pre-scan skips LIS and DOM walk (Controls.ts, pending)
+
+Fully ordered commits still paid LIS tables, a Set, lookups and order
+rewrites. A pure array pre-scan now detects strictly increasing committed
+positions (any new entry fails it) and skips everything, read-only. Swap,
+restores and initial mounts fall through to LIS unchanged.
+Target: delete/update floors.
+- Verdict: PENDING — awaiting fast-loop A/B vs baseline. Note: this stacks
+  on unmeasured 004; on regression, bisect 004 vs 005 via their commits.
+
 ## 004b — static workload repetitions (harness, measurement-only)
 
 Static mount/dispose ran once per round (n=2, 11× within-run spread),

@@ -327,8 +327,24 @@ const placeEntry = (
   return Anchor
 }
 
+// True when every entry already sits in committed order: strictly
+// increasing positions with no newly created entries. Pure array reads,
+// so ordered commits skip the LIS tables and the DOM walk entirely.
+const isCommittedOrder = (Desired: ReadonlyArray<ForEntry>): boolean => {
+  let previous = -1
+
+  for (const Entry of Desired) {
+    if (Entry.order <= previous) return false
+    previous = Entry.order
+  }
+
+  return true
+}
+
 const reorderForEntries = (State: ForControlState, Desired: ReadonlyArray<ForEntry>): void => {
   if (State.Disposed) return
+
+  if (isCommittedOrder(Desired)) return
 
   const keep = increasingPositions(Desired)
   let Anchor: Node = State.End
