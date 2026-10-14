@@ -1,11 +1,39 @@
+<div align="center">
+
 # @effect/ui
 
-A browser JSX UI library with **Effect-native acquisition**, **scoped lifetimes**,
-and **fine-grained signals**. Components build their tree once; signals update
-the DOM bindings that use them without rerendering the component.
+**Effect-native browser UI.** Acquire dependencies as Effects, compose closed JSX tags, and update the DOM through fine-grained signals — no rerenders.
+
+[![CI](https://github.com/jbt95/effect-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/jbt95/effect-ui/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+![Status](https://img.shields.io/badge/status-pre--1.0%20%E2%80%A2%20private-orange.svg)
+![Effect](https://img.shields.io/badge/powered_by-Effect_4-5b5bd6.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)
+![ESM only](https://img.shields.io/badge/modules-ESM_only-8a8a8a.svg)
+
+[API reference](docs/API.md) · [Migration guide](docs/MIGRATION.md) · [Live demo](#demo) · [Browser support](docs/BROWSERS.md)
+
+</div>
 
 Built on Effect v4. The package is private and pre-1.0; the current API uses
 module namespaces and acquired, dependency-closed JSX tags.
+
+## Why @effect/ui?
+
+- **Dependencies up front, JSX after.** `Component.make` acquires services and returns a closed tag. If it compiles, it mounts — missing services fail typecheck, not runtime.
+- **Signals, not rerenders.** Components build their tree once; `Signal` updates patch only the bound DOM nodes.
+- **Scoped everything.** State, selectors, resources, forks, and finalizers live and die with their subtree. Disposal awaits async cleanup.
+- **Data-first async.** `Resource` holds data, `Async.View` renders it, refreshes retain the last successful DOM.
+- **Replaceable backends.** Navigation (`browserLayer` / `memoryLayer`), HTTP transport, and caches are Layers — swap them in tests without touching components.
+
+```mermaid
+flowchart LR
+    A[Acquire services<br/>Component.make] --> B[Assemble JSX<br/>Application.make&lt;R&gt;]
+    B --> C[Mount scoped<br/>Application.start]
+    C --> D{Signals update}
+    D -->|fine-grained patch| E[DOM]
+    C -->|dispose| F[Awaited teardown]
+```
 
 ## Getting started
 
@@ -278,6 +306,20 @@ controllers with read-only windows, ARIA attributes, and keyboard actions. Hosts
 own positioning, scrolling, and resize observation. Collections are snapshotted;
 recreate controllers for changed data/key sets. See
 [`example/Virtualized.tsx`](example/Virtualized.tsx).
+
+## Demo
+
+Run `bun run dev` and open the demo page — every example below mounts live,
+side by side:
+
+| Demo                                   | Shows off                                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Counter, Clock, Todos                  | Services, signals, derived selectors, keyed lists                                                               |
+| [Directory](example/Directory.tsx)     | Nested routing, async loaders, lazy routes, metadata, forms                                                     |
+| [Console](example/Console.tsx)         | Everything at once: routing, cached queries with refresh, settings form, virtualized audit trail, activity feed |
+| [Resources](example/Resources.tsx)     | Shared cache entries, memoized selectors, transitions, image preload                                            |
+| [Virtualized](example/Virtualized.tsx) | 2,000-row listbox and two-axis grid with keyboard navigation                                                    |
+| [Http](example/Http.tsx)               | Schema-decoded client, BFF rewriting, interceptors, query caching                                               |
 
 ## Testing and development
 
