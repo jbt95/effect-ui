@@ -521,6 +521,12 @@ const RegisterListLifetime = () =>
     return Lifetime
   })
 
+/**
+ * Creates a scope-owned fixed-row listbox controller. Input arrays are
+ * snapshotted — recreate the controller when the collection or key set
+ * changes. The host owns the scrollable element, item positioning at each
+ * row's `start` offset, and viewport observations.
+ */
 export const make = <A>(
   Options: VirtualListOptions<A>
 ): Effect.Effect<VirtualList<A>, never, Scope.Scope> => {
@@ -538,4 +544,5 @@ export const make = <A>(
   })
 }
 
+/** Headless fixed-row listbox controllers with listbox/option ARIA semantics. See `make`. */
 export const VirtualList = { make }

@@ -11,16 +11,25 @@ export interface LifecycleSlot {
   PendingMounts: Promise<void>
 }
 
+/** The per-instance lifecycle capability. Provided automatically by every component scope; never provide it by hand. */
 export class Service extends Context.Service<Service, LifecycleSlot>()("@effect/ui/Lifecycle") {}
 
-/** Effect-native post-commit action, bound to the registering instance's context. */
+/**
+ * Registers an Effect to run after the enclosing component's DOM is
+ * inserted, with the registering context bound. Deferred failures go to
+ * runtime cause reporting — they are not descendant error-boundary UI.
+ */
 export const mounted = Effect.fnUntraced(function* <A, E, R>(action: Effect.Effect<A, E, R>) {
   const slot = yield* Service
   const context = yield* Effect.context<R>()
   slot.Mounts.push(() => Effect.runPromise(Effect.provideContext(action, context)))
 })
 
-/** Scoped release. Handle expected failures before registering cleanup. */
+/**
+ * Registers scoped release. The expected error channel must be `never` —
+ * recover or log expected failures before registering. Defects remain
+ * defects. Use `Lifecycle.onCleanup` from components.
+ */
 export const cleanup = <A, R>(action: Effect.Effect<A, never, R>) =>
   Effect.addFinalizer(() => action)
 

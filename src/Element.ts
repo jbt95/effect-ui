@@ -23,18 +23,24 @@ export interface ControlTag {
   readonly control: (props: never, parent: Node, host: Host, anchor?: Node | null) => Disposer
 }
 
+/** Anything usable as a JSX tag: intrinsics, fragments, components, and controls. */
 export type ElementType = string | typeof Fragment | ComponentTag | ControlTag
 
-/** Ordinary JSX accepts only tags with already-acquired application dependencies. */
+/**
+ * Ordinary JSX accepts only tags with already-acquired application
+ * dependencies. A component whose renderer still requires application
+ * services is not a valid JSX tag — acquire it with `Component.make` first.
+ */
 export interface ClosedComponentTag {
   (props: never): Element
   readonly type: "component"
   readonly render: (props: never) => Effect.Effect<Element, unknown, Local>
 }
 
+/** The tag union enforced by the JSX transform. See `ClosedComponentTag`. */
 export type ClosedElementType = string | typeof Fragment | ClosedComponentTag | ControlTag
 
-/** A JSX element descriptor produced by the jsx runtime. */
+/** A JSX element descriptor produced by the jsx runtime. Plain data, not a DOM node. */
 export interface Element {
   readonly type: ElementType
   readonly props: ElementProps
@@ -47,8 +53,19 @@ export interface Element {
  * union member can name it; only the readable `value` is required, which keeps
  * the signal's own variance out of the JSX contract.
  */
+/**
+ * A child-level reactive value: a `Source` of text-compatible scalars.
+ * Because `Source` is covariant, any readable source of these scalars fits —
+ * while a `Source` of any other type is rejected, so wrongly typed signals
+ * fail compilation instead of rendering `[object Object]`.
+ */
 export type SignalChild = Source<string | number | boolean | null | undefined>
 
+/**
+ * Anything renderable as a child: descriptors, text/scalars, reactive
+ * sources, nested arrays, and empty values (`null`, `undefined`, booleans
+ * render nothing).
+ */
 export type ElementChild =
   | Element
   | SignalChild
@@ -76,23 +93,38 @@ export type ClassValue = string | boolean | null | undefined | readonly ClassVal
 
 export type StyleLike = string | { readonly [K: string]: string | number }
 
+/**
+ * Either a static value or a reactive `Source` of that value. Native scalar
+ * props keep their type inside `Reactive`, so a string source cannot fill a
+ * boolean prop.
+ */
 export type Reactive<A> = A | Source<A>
 
-/** Closed Effect action accepted by an event prop without receiving the event. */
+/** A closed Effect action accepted by an event prop without receiving the event. */
 export type EffectEventHandler = Effect.Effect<unknown, unknown, never>
 
-/** Native event callbacks may synchronously return or produce a closed Effect. */
+/**
+ * Native event callbacks receive the concrete event with a typed
+ * `currentTarget` and may return `void` or a closed Effect. Capture any
+ * needed values synchronously: the event must not escape into async work.
+ */
 export type NativeEventHandler<E extends Event, Target extends EventTarget = EventTarget> = {
   bivarianceHack(
     event: E & { readonly currentTarget: Target }
   ): void | Effect.Effect<unknown, unknown, never>
 }["bivarianceHack"]
 
+/**
+ * An event handler: either a closed Effect run when the event fires, or a
+ * native callback receiving the event. Synchronous throws and Effect
+ * failures go to the nearest `ErrorBoundary` or mount-level `onError`;
+ * running Effects are interrupted when their element is disposed.
+ */
 export type EventHandler<E extends Event = Event, Target extends EventTarget = EventTarget> =
   | EffectEventHandler
   | NativeEventHandler<E, Target>
 
-/** Mutable object reference populated while its native element is mounted. */
+/** Mutable object reference populated while its native element is mounted. Cleared on disposal. */
 export interface RefObject<T> {
   current: T | null
 }
@@ -102,12 +134,13 @@ export type RefCallback<T extends Node> = {
   bivarianceHack(instance: T | null): void
 }["bivarianceHack"]
 
+/** An element ref: an object ref populated on mount, or a callback receiving the element (and `null` on disposal). */
 export type Ref<T extends Node> = RefObject<T> | RefCallback<T>
 
 /** Broad ref shape used inside the renderer after JSX has checked the tag type. */
 export type RefAttributeValue = RefObject<unknown> | RefCallback<Node>
 
-/** Creates an object ref for a specific native element type. */
+/** Creates an object ref for a specific native element type. Prefer `Ref.make`. */
 export const createRef = <T extends Node>(): RefObject<T> => ({ current: null })
 
 /**
@@ -272,6 +305,11 @@ export interface JsxSource {
  */
 export type JsxDevSelf = undefined
 
+/**
+ * Untyped element props accepted after tag-level checking (intrinsics use
+ * the narrower `IntrinsicElementProps`). Raw markup sinks (`innerHTML`,
+ * `outerHTML`, `textContent`, `srcdoc`) are deliberately absent.
+ */
 export interface ElementProps {
   children?: ElementChild
   key?: string | number
@@ -329,7 +367,10 @@ const toChildren = (children: ElementChild | undefined): readonly ElementChild[]
   return [children]
 }
 
-/** `jsx` / `jsxs` — the automatic JSX runtime factory. */
+/**
+ * The automatic JSX runtime factory (`jsxImportSource: "@effect/ui"`).
+ * Splits `children` out of props into the descriptor's child list.
+ */
 export function jsx(
   type: ElementType,
   props?: ElementProps | null,
@@ -338,7 +379,10 @@ export function jsx(
   return { type, props: props ?? {}, children: toChildren(props?.children) }
 }
 
+/** Static-children JSX factory. Identical to `jsx`; kept for transform compatibility. */
 export const jsxs = jsx
 
+// oxlint-disable-next-line better-antislop/no-unknown-parameters -- JSX decoding is a runtime protocol guard.
+/** Type guard recognizing JSX element descriptors produced by `jsx`. */
 export const isElement = (u: unknown): u is Element =>
   typeof u === "object" && u !== null && "type" in u && "props" in u && "children" in u

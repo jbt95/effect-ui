@@ -9,7 +9,10 @@ const isFocusable = (element: HTMLElement): boolean =>
   !element.matches(":disabled") &&
   element.closest("[hidden], [inert], [aria-hidden='true']") === null
 
-/** Focuses the referenced element and reports whether it became the active element. */
+/**
+ * Focuses the referenced element and reports whether it became the active
+ * element. No focus trap or restoration is provided — build those per widget.
+ */
 export const focus = <T extends HTMLElement>(ref: RefObject<T>): Effect.Effect<boolean> =>
   Effect.sync(() => {
     const element = ref.current
@@ -53,4 +56,5 @@ export const focusFirst = <T extends HTMLElement>(
     return null
   })
 
+/** Alias for `focusFirst`. See `Focus.first`. */
 export const first = focusFirst

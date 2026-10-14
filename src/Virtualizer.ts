@@ -23,9 +23,17 @@ export type {
   VirtualTableKeyboardEvent
 } from "./VirtualTable.js"
 
-/** Pure fixed-size geometry shared by the list and table controllers. */
+/**
+ * Pure fixed-size windowing geometry shared by the list and table
+ * controllers. See `fixedRange`.
+ */
 export const Virtualizer = {
   fixedRange: FixedRange
 }
 
+/**
+ * Computes which fixed-size window to render: `start`/`end` indices clamped
+ * to the collection, the pixel `offset` of `start`, and `totalSize`.
+ * Negative or overflowing scroll offsets are clamped; invalid sizes throw.
+ */
 export const fixedRange = FixedRange

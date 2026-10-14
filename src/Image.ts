@@ -138,6 +138,11 @@ const ImageView = (Props: ImageProps, Failed: Signal<boolean>) =>
     children: Props.fallback ?? DefaultFallback(Props.alt)
   })
 
+/**
+ * Renders the accessible native image as an Effect descriptor. Prefer the
+ * `<Image.View>` tag in JSX; use `make` when computing props
+ * programmatically.
+ */
 export const make = Effect.fnUntraced(function* (Props: ImageProps) {
   const Failed = yield* Signal.make(false)
 
@@ -166,6 +171,11 @@ const LoadNativeImage = (Src: string, Options: ImagePreloadOptions): Promise<HTM
     }
   })
 
+/**
+ * Preloads an image through the browser loader and HTTP cache, decoding it
+ * unless `decode: false`. Fails with `ImageLoadError`; no separate byte
+ * cache is maintained.
+ */
 export const preload = (
   Src: string,
   Options: ImagePreloadOptions = {}
@@ -183,7 +193,12 @@ export const preload = (
 
 const ImageComponent = local(make)
 
-/** Accessible native-image component with intrinsic sizing and explicit preload support. */
+/**
+ * Accessible native-image component with intrinsic sizing and explicit
+ * preload support. Requires meaningful `alt` (or `alt=""` for decoration)
+ * plus `width`/`height` to reserve layout space; lazy-loads by default.
+ */
 export const Image = Object.assign(ImageComponent, { make, preload })
 
+/** The native-image JSX tag. See `Image`. */
 export const View = Image

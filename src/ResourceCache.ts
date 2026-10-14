@@ -18,7 +18,13 @@ interface CacheIdentity {
 
 const EntriesKey: unique symbol = Symbol.for("@effect/ui/ResourceCache/entries")
 
-/** A typed, parameterized key whose loader and identity remain stable. */
+/**
+ * A typed, parameterized query definition. Inert until invoked: calling it
+ * produces an Effect requiring the owning `Cache` plus the loader's services.
+ * `identify` must return a stable string per argument; entries are shared by
+ * their serialized id. Loader and identity stay referentially stable, so keys
+ * can live at module scope.
+ */
 export interface ResourceCacheKey<Args, A, E, R> {
   (args: Args): Effect.Effect<ResourceValue<A, E>, never, Cache | R>
   readonly id: string
@@ -28,14 +34,26 @@ export interface ResourceCacheKey<Args, A, E, R> {
   readonly [EntriesKey]: WeakMap<CacheIdentity, Map<string, ResourceCacheEntry<A, E>>>
 }
 
+/**
+ * The cache capability. Provide it with `ResourceCache.layer` for an
+ * application-wide cache, or build a local one with `ResourceCache.make`.
+ * Entries are owned by the cache's scope until invalidated, cleared, or torn
+ * down — removing one consumer never cancels shared work.
+ */
 export class Cache extends Context.Service<Cache, ResourceCache>()("@effect/ui/ResourceCache") {}
 
+/** Arguments for `ResourceCache.key`: identity, loader, and stale time. */
 export interface KeyOptions<Args, A, E, R> {
   readonly identify: (args: Args) => string
   readonly load: (args: Args) => Effect.Effect<A, E, R>
   readonly staleTime?: Duration.Input
 }
 
+/**
+ * A scope-owned keyed cache. `get` shares in-flight work between identical
+ * query/argument pairs and revalidates stale entries; `invalidate` and
+ * `clear` remove entries and cancel their active loads.
+ */
 export interface ResourceCache {
   /** Returns a cached resource, sharing in-flight work and refreshing stale entries. */
   readonly get: <Args, A, E, R>(
@@ -232,6 +250,12 @@ const makeKey = <Args, A, E, R>(
   return Key
 }
 
+/**
+ * Creates a scope-owned cache with no service wiring. Prefer `layer` for
+ * application code; use `make` for explicitly local caches whose lifetime you
+ * manage. Note `get` still requires the loaders' services — close those with
+ * `Action.bind` before using a local cache inside a renderer.
+ */
 export const make = Effect.fnUntraced(function* (): Effect.fn.Return<
   ResourceCache,
   never,
@@ -260,6 +284,18 @@ export const make = Effect.fnUntraced(function* (): Effect.fn.Return<
   return { get, invalidate, clear }
 })
 
+/**
+ * Defines an inert, callable query. Invoking the key does not run the loader
+ * — it returns an Effect requiring `Cache` plus the loader's services.
+ *
+ * ```ts
+ * const UserQuery = ResourceCache.key("user", {
+ *   identify: (id: string) => id,
+ *   load: (id) => Users.use((users) => users.get(id)),
+ *   staleTime: "5 minutes"
+ * })
+ * ```
+ */
 export function key<Args, A, E, R>(
   id: string,
   options: KeyOptions<Args, A, E, R>
@@ -288,16 +324,26 @@ const isOptions = <Args, A, E, R>(
   options: KeyOptions<Args, A, E, R> | ((args: Args) => string)
 ): options is KeyOptions<Args, A, E, R> => typeof options !== "function"
 
+/** Provides a scope-owned `Cache` service. Never a global cache. */
 export const layer = Layer.effect(Cache, make())
 
+/** Looks a query up in the ambient `Cache`, sharing in-flight and fresh entries. */
 export const get = <Args, A, E, R>(query: ResourceCacheKey<Args, A, E, R>, args: Args) =>
   query(args)
 
+/** Removes one entry from the ambient `Cache`, cancelling its active load. */
 export const invalidate = <Args, A, E, R>(query: ResourceCacheKey<Args, A, E, R>, args: Args) =>
   Cache.use((cache) => cache.invalidate(query, args))
 
+/** Removes every entry owned by the ambient `Cache`, cancelling active loads. */
 export const clear = Cache.use((cache) => cache.clear)
 
+/**
+ * Captures the ambient `Cache` and the loader's requirements now, returning a
+ * closed `(args) => Effect<Resource>` safe to invoke inside instance
+ * renderers, event handlers, and route loaders. Bind during component
+ * acquisition or application assembly.
+ */
 export const bind = Effect.fnUntraced(function* <Args, A, E, R>(
   query: ResourceCacheKey<Args, A, E, R>
 ) {
@@ -307,4 +353,5 @@ export const bind = Effect.fnUntraced(function* <Args, A, E, R>(
   return (args: Args) => Effect.provideContext(cache.get(query, args), context)
 })
 
+/** Scoped keyed caching with shared in-flight work and revalidation. See `key` and `layer`. */
 export const ResourceCache = { make, key, Cache, layer, get, invalidate, clear, bind }

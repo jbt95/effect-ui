@@ -50,7 +50,11 @@ export const browserLayer = (Options: BrowserHttpLayerOptions = {}) => {
   return Layer.provide(ConfiguredClientLayer, FetchClientLayer)
 }
 
-/** Executes a request, requires a successful status, and decodes its JSON body. */
+/**
+ * Executes a request with the provided client, requires a successful status,
+ * and decodes the JSON body with the schema. Decoder requirements, when the
+ * schema needs services, stay in the Effect environment.
+ */
 export const json = <S extends Schema.Constraint>(
   Request: HttpClientRequest.HttpClientRequest,
   JsonSchema: S
@@ -85,13 +89,23 @@ const NormalizeBffPrefix = (Prefix: string): string => {
   return Url.pathname.replace(/\/+$/, "")
 }
 
-/** Rewrites requests to a same-origin backend-for-frontend path prefix. */
+/**
+ * Rewrites requests to a same-origin backend-for-frontend path prefix.
+ * A server must implement the prefix: rewriting cannot bypass CORS or act
+ * as a transparent browser network proxy.
+ */
 export const throughBff = <E, R>(
   Client: EffectHttpClient.HttpClient.With<E, R>,
   Prefix: string
 ): EffectHttpClient.HttpClient.With<E, R> =>
   Client.pipe(EffectHttpClient.mapRequest(HttpClientRequest.prependUrl(NormalizeBffPrefix(Prefix))))
 
+/** Canonical browser HTTP client layer. See `browserLayer`. */
 export const layer = browserLayer
 
+/**
+ * Effect's browser HTTP client with shared middleware, schema decoding, and
+ * BFF helpers. Compose query caching through `ResourceCache`, not a second
+ * global cache.
+ */
 export const Http = { layer, browserLayer, json, withBaseUrl, throughBff }

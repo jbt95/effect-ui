@@ -9,6 +9,7 @@ import {
 import { Navigate, Prefetch } from "./router/Runtime.js"
 import type { NavigateOptions } from "./router/Types.js"
 
+/** A plain snapshot of the current location, shared by browser and memory providers. */
 export interface Location {
   readonly href: string
   readonly pathname: string
@@ -16,11 +17,17 @@ export interface Location {
   readonly hash: string
 }
 
+/** Typed programmatic-navigation failure: invalid or cross-origin destinations, rejected history updates, failed prefetch. */
 export class NavigationError extends Data.TaggedError("NavigationError")<{
   readonly path: string
   readonly reason: string
 }> {}
 
+/**
+ * The navigation capability: a read-only location plus closed navigation
+ * actions. Routers and links acquire this service; tests substitute the
+ * memory implementation without touching components.
+ */
 export interface Provider {
   readonly location: Source<Location>
   readonly navigate: (
@@ -30,6 +37,7 @@ export interface Provider {
   readonly prefetch: (path: string) => Effect.Effect<void, NavigationError>
 }
 
+/** The navigation capability tag. Provide it with `browserLayer` or `memoryLayer`. */
 export class Service extends Context.Service<Service, Provider>()("@effect/ui/Navigation") {}
 
 const location = (url: URL): Location => ({
@@ -64,6 +72,10 @@ const navigateMemory = (
     })
   )
 
+/**
+ * Builds a deterministic in-memory provider. Never touches browser history,
+ * so prefetch is a no-op. Prefer it in tests and adapters.
+ */
 export const memory = Effect.fnUntraced(function* (initial = "/") {
   const state = yield* Signal.make(location(new URL(initial, "https://effect-ui.local")))
 
@@ -112,6 +124,13 @@ const attachBrowserSync = (state: Writable<Location>): Effect.Effect<() => void>
     }
   })
 
+/**
+ * Builds the browser provider. Owns `popstate`/`hashchange` listeners in its
+ * layer scope and keeps every mounted browser provider in sync after
+ * programmatic history changes, so multiple applications never disagree
+ * about the URL. Native back/forward keep their `popstate`/`hashchange`
+ * hook kinds.
+ */
 export const browser = Effect.gen(function* () {
   const state = yield* Signal.make(location(new URL(window.location.href)))
   const detach = yield* attachBrowserSync(state)
@@ -128,11 +147,20 @@ export const browser = Effect.gen(function* () {
   })
 })
 
+/** Provides browser-backed navigation. See `browser`. */
 export const browserLayer = Layer.effect(Service, browser)
 
+/** Provides deterministic in-memory navigation starting at `initial`. See `memory`. */
 export const memoryLayer = (initial?: string) => Layer.effect(Service, memory(initial))
 
+/**
+ * Navigates to a same-origin path, replacing the entry with
+ * `{ replace: true }`. Clicking the already-current location is a no-op
+ * (user callbacks still run). Requires `Service` — bind it with
+ * `Action.bind` before placing navigation in event JSX.
+ */
 export const navigate = (path: string, options?: NavigateOptions) =>
   Service.use((provider) => provider.navigate(path, options))
 
+/** Prefetches lazy route modules for a same-origin destination. Requires `Service`. */
 export const prefetch = (path: string) => Service.use((provider) => provider.prefetch(path))

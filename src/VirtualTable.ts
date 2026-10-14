@@ -663,6 +663,12 @@ const InitialTableWindow = <Row, Column>(Data: TableData<Row, Column>): TableWin
   }
 }
 
+/**
+ * Creates a scope-owned fixed-row/fixed-column grid controller. Input rows,
+ * columns, and keys are snapshotted — recreate the controller when they
+ * change. The host owns the scrollable element, cell positioning, and
+ * viewport observations.
+ */
 export const make = <Row, Column>(
   Options: VirtualTableOptions<Row, Column>
 ): Effect.Effect<VirtualTable<Row, Column>, never, Scope.Scope> => {
@@ -678,4 +684,5 @@ export const make = <Row, Column>(
   })
 }
 
+/** Headless two-axis grid controllers with grid/row/cell ARIA semantics. See `make`. */
 export const VirtualTable = { make }

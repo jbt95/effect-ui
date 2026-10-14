@@ -17,7 +17,18 @@ export type {
   RouterProps
 } from "./router/Types.js"
 
-/** Acquire navigation before creating a closed outlet tag. Loaders are closed Effects. */
+/**
+ * Acquires `Navigation.Service` and returns a closed router outlet tag.
+ * Route loaders must already be closed Effects — acquire or bind their
+ * services before constructing the options.
+ *
+ * ```ts
+ * const Outlet = yield* Router.make({
+ *   routes: [Route.make("/", { render: () => <p>Home</p> })],
+ *   notFound: <p>Page not found</p>
+ * })
+ * ```
+ */
 export const make = Effect.fnUntraced(function* (options: Omit<RouterProps, "navigation">) {
   const navigation = yield* Service
 

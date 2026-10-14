@@ -1,6 +1,11 @@
 import { Cause, Effect, Exit, Fiber, FiberHandle, Option, Scope, Semaphore, Stream } from "effect"
 import { Signal, type Source } from "./Signal.js"
 
+/**
+ * The lifecycle state of an async load. `pending` and `failure` retain the
+ * last successful value as `previous`; `cancelled` marks interruption via
+ * `refresh`/`cancel` or scope teardown. Failures carry the full `Cause<E>`.
+ */
 export type ResourceState<A, E> =
   | { readonly status: "pending"; readonly previous: Option.Option<A> }
   | { readonly status: "success"; readonly value: A }
@@ -16,6 +21,17 @@ interface ResourceSnapshot<A, E> {
   readonly state: ResourceState<A, E>
 }
 
+/**
+ * An Effect-native async value with cancellation and revalidation. The load
+ * runs in a scope-owned fiber: `refresh` interrupts the active load and
+ * restarts it, `cancel` interrupts and leaves `cancelled` state. State is
+ * read-only; `changes` emits the current state followed by transitions.
+ *
+ * ```ts
+ * const user = yield* Resource.make(api.get(id))
+ * yield* user.refresh
+ * ```
+ */
 export interface Resource<A, E> {
   /** Current read-only load state. Pending and failure retain the last successful value. */
   readonly state: ResourceStateSignal<ResourceState<A, E>>
@@ -27,6 +43,7 @@ export interface Resource<A, E> {
   readonly cancel: Effect.Effect<void>
 }
 
+/** Read-only reactive view of a `Resource`'s current state. See `Signal.Source`. */
 export type ResourceStateSignal<A> = Source<A>
 
 type CompleteLoad<R> = (Generation: number) => Effect.Effect<void, never, R>
@@ -122,6 +139,11 @@ const makeCancel = <A, E>(
     })
   )
 
+/**
+ * Starts a scoped load and returns its handle. Load failures become
+ * `failure` state, never acquisition failures — `make` itself only fails
+ * when scope acquisition does. The first load starts immediately.
+ */
 export const make = Effect.fnUntraced(function* <A, E, R>(
   Load: Effect.Effect<A, E, R>
 ): Effect.fn.Return<Resource<A, E>, never, R | Scope.Scope> {
@@ -149,8 +171,11 @@ export const make = Effect.fnUntraced(function* <A, E, R>(
   return ResourceValue
 })
 
+/** Interrupts the active load and restarts it, preserving the previous value while pending. */
 export const refresh = <A, E>(self: Resource<A, E>) => self.refresh
 
+/** Interrupts the active load and leaves the resource in `cancelled` state. */
 export const cancel = <A, E>(self: Resource<A, E>) => self.cancel
 
+/** Scoped async values with cancellation and revalidation. See `Resource`. */
 export const Resource = { make, refresh, cancel }

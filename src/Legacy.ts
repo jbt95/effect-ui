@@ -1,4 +1,9 @@
-/** Deprecated adapters for the pre-redesign interface. New applications use module namespaces. */
+/**
+ * Deprecated adapters for the pre-redesign flat interface, kept for staged
+ * migration. New code must use the module namespaces (`Component`, `Signal`,
+ * `Application`, …). Do not mix legacy tags and runtime handles with
+ * namespace-based application assembly.
+ */
 import "./Jsx.js"
 
 export { defineComponent } from "./component/Legacy.js"

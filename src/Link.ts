@@ -113,6 +113,14 @@ const intentHandler =
     return result === undefined ? intent : result.pipe(Effect.andThen(intent))
   }
 
+/**
+ * Acquires `Navigation.Service` and returns a closed anchor tag. Keeps a
+ * real `href`, tracks `data-active`/`aria-current="page"` reactively, and
+ * prefetches lazy route modules on hover/focus unless `prefetch={false}`.
+ * Modified clicks, downloads, targets, external destinations, and
+ * browser-backed hash scrolling keep native behavior; clicking the current
+ * location never pushes duplicate history.
+ */
 export const make = Effect.fnUntraced(function* () {
   const provider = yield* Service
 
