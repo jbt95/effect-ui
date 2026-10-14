@@ -2,7 +2,7 @@ declare global {
   namespace JSX {
     type Element = import("./Element.js").Element
 
-    type ElementType = import("./Element.js").ElementType
+    type ElementType = import("./Element.js").ClosedElementType
 
     interface IntrinsicAttributes {
       key?: string | number
@@ -30,15 +30,7 @@ declare global {
         [Tag in `${string}-${string}`]: import("./Element.js").CustomElementProps
       }
 
-    type LibraryManagedAttributes<C, P> = C extends import("./Component.js").Component<
-      infer CP extends object,
-      any,
-      any
-    >
-      ? CP
-      : C extends import("./Control.js").Control<infer CP extends object>
-        ? CP
-        : P
+    type LibraryManagedAttributes<C, P> = P
   }
 }
 

@@ -1,13 +1,13 @@
 import {
   Async,
-  createRef,
-  defineComponent,
-  focus,
+  Component,
+  Ref,
+  Focus,
   Image,
   ResourceCache,
   Show,
   Signal,
-  startTransition
+  Transition
 } from "@effect/ui"
 import { Effect } from "effect"
 
@@ -30,22 +30,11 @@ const loadProfile = (id: string): Promise<Profile> =>
     )
   })
 
-const ProfileKey = ResourceCache.key(
-  "example-profile",
-  (id: string) => id,
-  (id) =>
-    Effect.map(
-      Effect.promise(() => loadProfile(id)),
-      (Profile) => (
-        <article>
-          <h4>{Profile.name}</h4>
-          <p>{Profile.role}</p>
-          <small>Loaded at revision {Profile.revision}</small>
-        </article>
-      )
-    ),
-  "1 minute"
-)
+const ProfileKey = ResourceCache.key("example-profile", {
+  identify: (id: string) => id,
+  load: (id) => Effect.promise(() => loadProfile(id)),
+  staleTime: "1 minute"
+})
 
 const formatAmount = (amount: number): string =>
   new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(amount)
@@ -58,7 +47,7 @@ const CreateResourcesModel = () =>
     const Amount = yield* Signal.make(128)
     const AmountLabel = yield* Signal.memo([Amount], () => formatAmount(Amount.value))
     const ShowSavings = yield* Signal.memo([Amount], () => Amount.value >= 100)
-    const SearchRef = createRef<HTMLInputElement>()
+    const SearchRef = Ref.make<HTMLInputElement>()
     const PreloadStatus = yield* Signal.make("Not preloaded yet")
 
     const PreloadSunrise = Image.preload("/sunrise.svg").pipe(
@@ -89,10 +78,17 @@ const ProfileSection = (Model: ResourcesModel) => (
     <p>
       Two consumers share the same in-flight entry: {String(Model.Profile === Model.SharedProfile)}
     </p>
-    <Async
-      resource={Model.Profile}
-      fallback={<p role="status">Loading profile…</p>}
-      error={(cause) => <p role="alert">Could not load the profile: {String(cause)}</p>}
+    <Async.View
+      source={Model.Profile}
+      success={(Profile) => (
+        <article>
+          <h4>{Profile.name}</h4>
+          <p>{Profile.role}</p>
+          <small>Loaded at revision {Profile.revision}</small>
+        </article>
+      )}
+      pending={<p role="status">Loading profile…</p>}
+      failure={(cause) => <p role="alert">Could not load the profile: {String(cause)}</p>}
     />
     <button onClick={Model.Profile.refresh}>Refresh profile</button>
     <button onClick={Model.Profile.cancel}>Cancel profile load</button>
@@ -103,11 +99,11 @@ const SelectorSection = (Model: ResourcesModel) => (
   <section aria-labelledby="selector-title">
     <h3 id="selector-title">Memoized selectors and transitions</h3>
     <p>Cart total: {Model.AmountLabel}</p>
-    <Show when={Model.ShowSavings} fallback={<p>Add more to unlock savings.</p>}>
+    <Show.View when={Model.ShowSavings} fallback={<p>Add more to unlock savings.</p>}>
       <p>Free delivery unlocked.</p>
-    </Show>
+    </Show.View>
     <button onClick={Model.Amount.update((Value) => Value + 1)}>Update immediately</button>
-    <button onClick={startTransition(Model.Amount.update((Value) => Value + 10))}>
+    <button onClick={Transition.start(Model.Amount.update((Value) => Value + 10))}>
       Add ten in a transition
     </button>
   </section>
@@ -116,7 +112,7 @@ const SelectorSection = (Model: ResourcesModel) => (
 const ImageSection = (Model: ResourcesModel) => (
   <section aria-labelledby="image-title">
     <h3 id="image-title">Native images, preload, and focus</h3>
-    <Image
+    <Image.View
       src="/sunrise.svg"
       alt="A pale sun rising behind layered mountain ridges"
       width={960}
@@ -129,7 +125,7 @@ const ImageSection = (Model: ResourcesModel) => (
     <button onClick={Model.PreloadSunrise}>Preload and decode the image</button>
     <label htmlFor="resource-search">Search</label>
     <input id="resource-search" ref={Model.SearchRef} />
-    <button onClick={focus(Model.SearchRef)}>Focus search field</button>
+    <button onClick={Focus.focus(Model.SearchRef)}>Focus search field</button>
   </section>
 )
 
@@ -142,6 +138,6 @@ const RenderResources = (Model: ResourcesModel) => (
   </section>
 )
 
-export const ResourcesView = defineComponent(() =>
+export const ResourcesView = Component.local(() =>
   Effect.map(CreateResourcesModel(), RenderResources)
 )

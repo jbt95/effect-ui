@@ -1,6 +1,8 @@
 import type { Effect } from "effect"
 import type { Scope } from "effect"
 import type { Element, ElementChild, ElementProps } from "./Element.js"
+import type { Local } from "./Component.js"
+import type { LifecycleSlot } from "./runtime/Lifecycle.js"
 
 /** Tears down a mounted subtree, including asynchronous Effect finalizers. */
 export type Disposer = () => Promise<void>
@@ -58,11 +60,14 @@ export interface Host {
    * stays `unknown` at this boundary and is reported as-is.
    */
   readonly reportError: (cause: unknown) => void
+  /** Retains asynchronous render rollback until the owning runtime is disposed. */
+  readonly trackCleanup: (cleanup: Promise<void>) => void
   readonly createScope: () => Scope.Closeable
   readonly closeScope: (scope: Scope.Closeable) => Promise<void>
   readonly runComponent: (
-    effect: Effect.Effect<Element, unknown, unknown>,
-    scope: Scope.Closeable
+    effect: Effect.Effect<Element, unknown, Local>,
+    scope: Scope.Closeable,
+    slot: LifecycleSlot
   ) => Element
   readonly queueMount: (callback: () => void) => void
   readonly flushMounts: () => void

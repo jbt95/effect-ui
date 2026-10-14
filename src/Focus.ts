@@ -52,3 +52,5 @@ export const focusFirst = <T extends HTMLElement>(
 
     return null
   })
+
+export const first = focusFirst

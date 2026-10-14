@@ -23,14 +23,14 @@ export interface FormField<Value> {
 
 export interface FormState<A, Issue, EValidation = never, ESubmit = never> {
   readonly values: Signal<A>
-  readonly errors: Signal<ReadonlyArray<Issue>>
-  readonly submitting: Signal<boolean>
+  readonly errors: SignalSource<ReadonlyArray<Issue>>
+  readonly submitting: SignalSource<boolean>
   readonly submit: Effect.Effect<void, EValidation | ESubmit, never>
   readonly reset: Effect.Effect<void>
   readonly onSubmit: NativeEventHandler<SubmitEvent, HTMLFormElement>
 }
 
-const makeField = <A extends object, K extends keyof A>(
+export const field = <A extends object, K extends keyof A>(
   Values: Signal<A>,
   Name: K
 ): Effect.Effect<FormField<A[K]>, never, Scope.Scope> =>
@@ -132,7 +132,20 @@ export const createForm = <
       return submit
     }
 
-    return { values, errors, submitting, submit, reset, onSubmit }
+    return {
+      values,
+      errors: Signal.readonly(errors),
+      submitting: Signal.readonly(submitting),
+      submit,
+      reset,
+      onSubmit
+    }
   })
 
-export const Form = { make: createForm, field: makeField }
+export const make = createForm
+
+export const submit = <A, Issue, EV, ES>(self: FormState<A, Issue, EV, ES>) => self.submit
+
+export const reset = <A, Issue, EV, ES>(self: FormState<A, Issue, EV, ES>) => self.reset
+
+export const Form = { make, field, submit, reset }

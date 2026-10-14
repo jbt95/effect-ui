@@ -20,12 +20,11 @@ import {
   type LifecycleCallback,
   type LifecycleSlot,
   NoPendingMounts,
-  RunMountCallbacks,
-  withLifecycleSlot
+  RunMountCallbacks
 } from "./Lifecycle.js"
 
 const bindText = (
-  signal: Signal<unknown>,
+  signal: import("../Signal.js").Source<unknown>,
   parent: Node,
   host: Host,
   anchor?: Node | null
@@ -75,13 +74,13 @@ const abandonComponent = (
   cleanups: ReadonlyArray<LifecycleCallback>,
   host: Host
 ): void => {
-  void combine([() => host.closeScope(scope), ...CleanupCallbacks(cleanups)])().catch(
-    host.reportError
+  host.trackCleanup(
+    combine([() => host.closeScope(scope), ...CleanupCallbacks(cleanups)])().catch(host.reportError)
   )
 }
 
 const renderComponentChild = (
-  ComponentValue: Component<ElementProps, unknown, unknown>,
+  ComponentValue: Component<ElementProps, unknown>,
   Props: ElementProps,
   Parent: Node,
   Host: Host,
@@ -90,9 +89,7 @@ const renderComponentChild = (
   Slot: LifecycleSlot
 ): Disposer => {
   try {
-    const Child = withLifecycleSlot(Slot, () =>
-      Host.runComponent(ComponentValue.render(Props), ScopeValue)
-    )
+    const Child = Host.runComponent(ComponentValue.render(Props), ScopeValue, Slot)
 
     return renderNode(Child, Parent, Host, Anchor)
   } catch (error) {
@@ -102,7 +99,7 @@ const renderComponentChild = (
 }
 
 const mountComponent = (
-  comp: Component<ElementProps, unknown, unknown>,
+  comp: Component<ElementProps, unknown>,
   props: ElementProps,
   parent: Node,
   host: Host,
@@ -127,12 +124,25 @@ const mountComponent = (
   ])
 }
 
+const prepareSelectOptions = (dom: DomElement, props: ElementProps): void => {
+  if (dom.localName !== "select") return
+
+  // Both rendering paths must establish selection mode before any options are inserted.
+  for (const name of ["multiple", "size"]) {
+    const property = props[name]
+    const value = Signal.isSignal(property) ? property.value : property
+
+    if (value !== undefined && value !== null) applyAttrValue(dom, name, value)
+  }
+}
+
 const renderDomContents = (
   dom: DomElement,
   props: ElementProps,
   children: ReadonlyArray<unknown>,
   host: Host
 ): Disposer => {
+  prepareSelectOptions(dom, props)
   const childDisposer = renderChildren(children, dom, host)
 
   try {
@@ -271,10 +281,12 @@ const renderStaticElement = (
   anchor?: Node | null
 ): void => {
   const dom = createDomElement(type, parent)
-  applyStaticProps(dom, props)
+  prepareSelectOptions(dom, props)
 
   for (const child of children) renderStaticChild(child, dom, undefined)
 
+  // Like the dynamic path, child-dependent properties (for example select.value) run last.
+  applyStaticProps(dom, props)
   insert(parent, dom, anchor)
 }
 

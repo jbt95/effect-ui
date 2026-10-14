@@ -27,3 +27,5 @@ export type {
 export const Virtualizer = {
   fixedRange: FixedRange
 }
+
+export const fixedRange = FixedRange

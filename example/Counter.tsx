@@ -1,4 +1,4 @@
-import { defineComponent, Signal } from "@effect/ui"
+import { Component, Signal } from "@effect/ui"
 import { Context, Effect, Layer } from "effect"
 
 /**
@@ -8,8 +8,8 @@ import { Context, Effect, Layer } from "effect"
 class Counter extends Context.Service<
   Counter,
   {
-    readonly count: Signal<number>
-    readonly doubled: Signal<number>
+    readonly count: Signal.Source<number>
+    readonly doubled: Signal.Source<number>
     readonly increment: Effect.Effect<void>
     readonly decrement: Effect.Effect<void>
     readonly reset: Effect.Effect<void>
@@ -34,21 +34,22 @@ class Counter extends Context.Service<
   )
 }
 
-// Components are `(props) => Effect<Element>`; this one needs no props.
-const CounterView = defineComponent(() =>
+// Acquire the service before returning a closed JSX tag.
+const CounterView = Component.make(
   Effect.gen(function* () {
     const counter = yield* Counter
 
-    return (
-      <section>
-        <h2>Counter</h2>
-        <p>Count: {counter.count}</p>
-        <p>Double: {counter.doubled}</p>
-        <button onClick={counter.decrement}>-</button>
-        <button onClick={counter.increment}>+</button>
-        <button onClick={counter.reset}>Reset</button>
-      </section>
-    )
+    return () =>
+      Effect.succeed(
+        <section>
+          <h2>Counter</h2>
+          <p>Count: {counter.count}</p>
+          <p>Double: {counter.doubled}</p>
+          <button onClick={counter.decrement}>-</button>
+          <button onClick={counter.increment}>+</button>
+          <button onClick={counter.reset}>Reset</button>
+        </section>
+      )
   })
 )
 

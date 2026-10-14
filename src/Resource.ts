@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Fiber, FiberHandle, Option, Scope, Semaphore, Stream } from "effect"
-import { Signal } from "./Signal.js"
+import { Signal, type Source } from "./Signal.js"
 
 export type ResourceState<A, E> =
   | { readonly status: "pending"; readonly previous: Option.Option<A> }
@@ -27,10 +27,7 @@ export interface Resource<A, E> {
   readonly cancel: Effect.Effect<void>
 }
 
-export interface ResourceStateSignal<out A> {
-  readonly get: Effect.Effect<A>
-  readonly value: A
-}
+export type ResourceStateSignal<A> = Source<A>
 
 type CompleteLoad<R> = (Generation: number) => Effect.Effect<void, never, R>
 
@@ -64,12 +61,14 @@ const SettleSnapshot = <A, E>(
 
 const makeStateView = <A, E>(
   Snapshot: Signal<ResourceSnapshot<A, E>>
-): ResourceStateSignal<ResourceState<A, E>> => ({
-  get: Effect.map(Snapshot.get, (Current) => Current.state),
-  get value(): ResourceState<A, E> {
-    return Snapshot.value.state
-  }
-})
+): ResourceStateSignal<ResourceState<A, E>> =>
+  Signal.fromSource({
+    get: Effect.map(Snapshot.get, (Current) => Current.state),
+    changes: Snapshot.changes.pipe(Stream.map((Current) => Current.state)),
+    get value(): ResourceState<A, E> {
+      return Snapshot.value.state
+    }
+  })
 
 const makeCompleteLoad =
   <A, E, R>(
@@ -123,7 +122,7 @@ const makeCancel = <A, E>(
     })
   )
 
-const make = Effect.fnUntraced(function* <A, E, R>(
+export const make = Effect.fnUntraced(function* <A, E, R>(
   Load: Effect.Effect<A, E, R>
 ): Effect.fn.Return<Resource<A, E>, never, R | Scope.Scope> {
   const Snapshot = yield* Signal.make<ResourceSnapshot<A, E>>({
@@ -150,4 +149,8 @@ const make = Effect.fnUntraced(function* <A, E, R>(
   return ResourceValue
 })
 
-export const Resource = { make }
+export const refresh = <A, E>(self: Resource<A, E>) => self.refresh
+
+export const cancel = <A, E>(self: Resource<A, E>) => self.cancel
+
+export const Resource = { make, refresh, cancel }

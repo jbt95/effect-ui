@@ -46,6 +46,11 @@ goal. Breaking public API changes are acceptable before 1.0.
 - [x] Add a supported-browser matrix and a WebDriver real-browser integration
       test harness.
 - [x] Add testing utilities for mounting, events, async updates, and cleanup.
+- [x] Add seeded property checks for virtualizer geometry, key tokens, and
+      route matching, plus a memory-navigation integration suite for the
+      integrated console example.
+- [x] Add an integrated operations-console example combining routing, cached
+      queries with refresh, forms, virtualization, and activity.
 - [x] Add performance benchmarks and guard against update/render regressions.
 - [x] Publish API reference, migration guidance, accessibility/security guidance,
       and end-to-end application examples.
@@ -53,6 +58,10 @@ goal. Breaking public API changes are acceptable before 1.0.
       publishing, and a documented 1.0 compatibility policy.
 - [ ] Set the canonical repository/issue URLs and intentionally make the package
       public only when the owner approves a release.
+- [ ] Run the WebDriver smoke suite on every supported engine before release;
+      Happy DOM and integration coverage are not browser evidence.
+- [ ] Evaluate a property-based testing framework (for example fast-check with
+      seeded runs) if hand-rolled generative coverage outgrows its harness.
 
 ## Deferred product decision
 

@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect"
-import { defineComponent } from "./Component.js"
+import { local } from "./Component.js"
 import { jsx, type ElementChild, type EventHandler, type IntrinsicElementProps } from "./Element.js"
 import { Show } from "./runtime/Controls.js"
 import { Signal } from "./Signal.js"
@@ -69,6 +69,24 @@ const HandleImageError =
       yield* RunHandler(UserHandler, EventValue)
     })
 
+const CaptureImageEvent = (EventValue: Event & { readonly currentTarget: HTMLImageElement }) => {
+  const ImageElement = EventValue.currentTarget
+
+  return new Proxy(EventValue, {
+    get(Target, Key) {
+      if (Key === "currentTarget") return ImageElement
+
+      // oxlint-disable-next-line better-antislop/no-reflect-get -- Native Event getters must receive the original event, not the proxy.
+      const Value = Reflect.get(Target, Key, Target)
+
+      // oxlint-disable-next-line better-antislop/no-runtime-typeof -- Native Event methods must also retain their original receiver.
+      return typeof Value === "function" ? Value.bind(Target) : Value
+    },
+    // WebIDL setters such as returnValue and cancelBubble also require the native receiver.
+    set: (Target, Key, Value) => Reflect.set(Target, Key, Value, Target)
+  })
+}
+
 const HandleImageLoad = (
   Decode: boolean,
   Failed: Signal<boolean>,
@@ -80,13 +98,15 @@ const HandleImageLoad = (
   return (EventValue: Event & { readonly currentTarget: HTMLImageElement }) => {
     if (!Decode) return RunHandler(UserLoadHandler, EventValue)
 
+    const CapturedEvent = CaptureImageEvent(EventValue)
+
     return Effect.tryPromise({
-      try: () => EventValue.currentTarget.decode(),
+      try: () => CapturedEvent.currentTarget.decode(),
       catch: () => undefined
     }).pipe(
       Effect.matchEffect({
-        onFailure: () => HandleError(EventValue),
-        onSuccess: () => RunHandler(UserLoadHandler, EventValue)
+        onFailure: () => HandleError(CapturedEvent),
+        onSuccess: () => RunHandler(UserLoadHandler, CapturedEvent)
       })
     )
   }
@@ -118,12 +138,11 @@ const ImageView = (Props: ImageProps, Failed: Signal<boolean>) =>
     children: Props.fallback ?? DefaultFallback(Props.alt)
   })
 
-const RenderImage = (Props: ImageProps) =>
-  Effect.gen(function* () {
-    const Failed = yield* Signal.make(false)
+export const make = Effect.fnUntraced(function* (Props: ImageProps) {
+  const Failed = yield* Signal.make(false)
 
-    return ImageView(Props, Failed)
-  })
+  return ImageView(Props, Failed)
+})
 
 const LoadNativeImage = (Src: string, Options: ImagePreloadOptions): Promise<HTMLImageElement> =>
   new Promise((Resolve, Reject) => {
@@ -147,7 +166,7 @@ const LoadNativeImage = (Src: string, Options: ImagePreloadOptions): Promise<HTM
     }
   })
 
-const PreloadImage = (
+export const preload = (
   Src: string,
   Options: ImagePreloadOptions = {}
 ): Effect.Effect<HTMLImageElement, ImageLoadError> =>
@@ -162,7 +181,9 @@ const PreloadImage = (
     catch: () => new ImageLoadError({ src: Src, reason: "Image failed to load or decode" })
   })
 
-const ImageComponent = defineComponent<ImageProps>(RenderImage)
+const ImageComponent = local(make)
 
 /** Accessible native-image component with intrinsic sizing and explicit preload support. */
-export const Image = Object.assign(ImageComponent, { preload: PreloadImage })
+export const Image = Object.assign(ImageComponent, { make, preload })
+
+export const View = Image

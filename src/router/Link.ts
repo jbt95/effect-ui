@@ -1,9 +1,9 @@
 import { Effect } from "effect"
-import { defineComponent } from "../Component.js"
+import { defineComponent } from "../component/Legacy.js"
 import { createRef, jsx } from "../Element.js"
 import type { ElementChild, IntrinsicElementProps, NativeEventHandler, Ref } from "../Element.js"
 import { onCleanup, onMount } from "../runtime/Lifecycle.js"
-import { Navigate, Prefetch } from "../Router.js"
+import { Navigate, Prefetch } from "./Runtime.js"
 import { RegisterActiveLink } from "./ActiveLinks.js"
 
 export interface LinkProps extends Omit<
@@ -260,4 +260,4 @@ const RenderLink = (Props: LinkProps) =>
     })
   })
 
-export const Link = defineComponent<LinkProps>(RenderLink)
+export const Link = defineComponent(RenderLink)

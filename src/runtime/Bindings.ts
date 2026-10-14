@@ -1,7 +1,7 @@
 import { Effect, Stream } from "effect"
 import { combine, noop, type Disposer, type Host } from "../Control.js"
 import type { ElementProps, EventHandler } from "../Element.js"
-import { Signal } from "../Signal.js"
+import { Signal, type Source } from "../Signal.js"
 import { disposeAfterFailure } from "./Disposal.js"
 import { applyAttrValue, EVENT_PROP_NAMES, HANDLED_PROPS, type DomElement } from "./Dom.js"
 import { createReactiveUpdateBinding } from "./Scheduler.js"
@@ -28,7 +28,7 @@ const wireAttr = (
 const wireSignalAttr = (
   dom: DomElement,
   name: string,
-  value: Signal<unknown>,
+  value: Source<unknown>,
   host: Host,
   disposers: Array<Disposer>
 ): void => {
@@ -71,7 +71,7 @@ const controlledFormOwner = (dom: DomElement, name: string): HTMLFormElement | n
 const wireControlledFormReset = (
   dom: DomElement,
   name: string,
-  signal: Signal<unknown>,
+  signal: Source<unknown>,
   host: Host
 ): Disposer => {
   let form: HTMLFormElement | null = null

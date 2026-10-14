@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
-import { mount } from "../src/Index.js"
+import { Effect } from "effect"
+import { Application } from "../src/Index.js"
+import { jsx } from "../src/Element.js"
 import { Counter, CounterView } from "../example/Counter"
 
 const buttonWithText = (root: HTMLElement, text: string): HTMLButtonElement => {
@@ -13,7 +15,16 @@ const buttonWithText = (root: HTMLElement, text: string): HTMLButtonElement => {
 describe("Counter (DOM)", () => {
   it("renders and reacts to clicks", async () => {
     const container = document.createElement("div")
-    const handle = mount(CounterView, container, Counter.layer)
+
+    const app = Application.make<Counter>()(
+      Effect.gen(function* () {
+        const View = yield* CounterView
+
+        return jsx(View, {})
+      })
+    )
+
+    const handle = await Application.start(app, container, Counter.layer)
 
     // Initial render is synchronous.
     expect(container.textContent).toContain("Count: 0")

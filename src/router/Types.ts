@@ -82,6 +82,8 @@ export interface NavigateOptions {
 }
 
 export interface RouterProps {
+  /** Explicit location adapter; omitted only by the deprecated browser-only interface. */
+  readonly navigation?: import("../Navigation.js").Provider
   /** Ordered route table. */
   readonly routes: ReadonlyArray<RouteDefinition>
   /** Not-found content, or a builder, rendered when no route matches. */

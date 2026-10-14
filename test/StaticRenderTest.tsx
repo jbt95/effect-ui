@@ -20,6 +20,9 @@ const testHost = () => {
     reportError: (cause) => {
       throw cause
     },
+    trackCleanup: (cleanup) => {
+      void cleanup.catch(host.reportError)
+    },
     createScope: () => {
       // SAFETY: static render tests never mount components, so the scope is
       // unused and only satisfies the Host contract.
@@ -37,6 +40,43 @@ const testHost = () => {
 }
 
 describe("static subtree fast path", () => {
+  it("establishes multiple selection before inserting selected options", () => {
+    const { host } = testHost()
+    const parent = document.createElement("div")
+
+    renderNode(
+      <select multiple>
+        <option selected>A</option>
+        <option selected>B</option>
+      </select>,
+      parent,
+      host
+    )
+
+    expect(Array.from(parent.querySelectorAll("option"), (Option) => Option.selected)).toEqual([
+      true,
+      true
+    ])
+  })
+
+  it("applies scalar select values after the options have been created", () => {
+    const { host } = testHost()
+    const parent = document.createElement("div")
+
+    const disposer = renderNode(
+      <select value="b">
+        <option value="a">A</option>
+        <option value="b">B</option>
+      </select>,
+      parent,
+      host
+    )
+
+    expect(disposer).toBe(noop)
+    expect(parent.querySelector("select")?.value).toBe("b")
+    expect(parent.querySelector("select")?.selectedIndex).toBe(1)
+  })
+
   it("renders benchmark-like rows with noop disposers and identical DOM", () => {
     const { host, fork } = testHost()
     const parent = document.createElement("tbody")

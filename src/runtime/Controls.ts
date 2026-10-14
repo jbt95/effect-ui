@@ -9,12 +9,12 @@ import {
   type Host
 } from "../Control.js"
 import type { ElementChild } from "../Element.js"
-import { Signal } from "../Signal.js"
+import { Signal, type Source } from "../Signal.js"
 import { ownerDocument } from "./Dom.js"
 
 export interface ShowProps {
   /** A `Signal<boolean>` (reactive) or a plain boolean. */
-  when: boolean | Signal<boolean>
+  when: boolean | Source<boolean>
   fallback?: ElementChild
   children?: ElementChild
 }
@@ -89,7 +89,7 @@ const renderInitialShowState = (State: ShowState, Show: boolean): void => {
   }
 }
 
-const watchShowState = (State: ShowState, When: Signal<boolean>): Disposer => {
+const watchShowState = (State: ShowState, When: Source<boolean>): Disposer => {
   renderInitialShowState(State, Boolean(When.value))
 
   const Watcher = State.Host.fork(
@@ -150,7 +150,7 @@ const showControl = (
 
   if (Signal.isSignal(When)) {
     // SAFETY: The public Show contract requires reactive conditions to be boolean signals.
-    return watchShowState(State, When as Signal<boolean>)
+    return watchShowState(State, When as Source<boolean>)
   }
 
   return renderStaticShow(State, Boolean(When))
@@ -160,7 +160,7 @@ export const Show: Control<ShowProps> = Control.make("control/show", showControl
 
 export interface ForProps<A = any> {
   /** A `Signal<ReadonlyArray<A>>` (reactive) or a plain array. */
-  each: ReadonlyArray<A> | Signal<ReadonlyArray<A>>
+  each: ReadonlyArray<A> | Source<ReadonlyArray<A>>
   /** Stable identity for a row (defaults to the item itself). */
   keyOf?: (item: A) => unknown
   /** Renders a row from its item. */
@@ -587,7 +587,7 @@ const disposeForControl = async (State: ForControlState): Promise<void> => {
 const clearFailedForControl = (State: ForControlState): void => {
   const EntryDisposers = Array.from(State.Entries.values(), (Entry) => Entry.disposer)
   State.Entries.clear()
-  void combine(EntryDisposers)().catch(State.Host.reportError)
+  State.Host.trackCleanup(combine(EntryDisposers)().catch(State.Host.reportError))
   removeBetween(State.Start, State.End)
   State.Start.remove()
   State.End.remove()
@@ -608,7 +608,7 @@ const trackForUpdate = (State: ForControlState, Items: ReadonlyArray<unknown>) =
     }
   })
 
-const startForUpdates = (State: ForControlState, Each: Signal<ReadonlyArray<unknown>>): void => {
+const startForUpdates = (State: ForControlState, Each: Source<ReadonlyArray<unknown>>): void => {
   State.Watcher = State.Host.fork(
     Signal.changes(Each).pipe(Stream.runForEach((Items) => trackForUpdate(State, Items)))
   )
@@ -623,7 +623,7 @@ const initializeForControl = (State: ForControlState): void => {
 
     if (IsReactive) {
       // SAFETY: IsReactive established the signal shape; `each` is typed as an array signal.
-      const EachSignal = Each as Signal<ReadonlyArray<unknown>>
+      const EachSignal = Each as Source<ReadonlyArray<unknown>>
       startForUpdates(State, EachSignal)
     }
   } catch (error) {

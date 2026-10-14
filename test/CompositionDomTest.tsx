@@ -17,8 +17,8 @@ import {
   Show,
   Signal,
   type StyleLike
-} from "../src/Index.js"
-import type { ClassValue } from "../src/Index.js"
+} from "../src/Legacy.js"
+import type { ClassValue } from "../src/Legacy.js"
 import type { ElementChild } from "../src/Element.js"
 
 describe("component composition and control flow", () => {

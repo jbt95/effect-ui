@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -16,6 +16,8 @@
     "types": ["node"],
     "paths": {
       "@effect/ui": ["./src/Index.ts"],
+      "@effect/ui/*": ["./src/*.ts"],
+      "@effect/ui/legacy": ["./src/Legacy.ts"],
       "@effect/ui/http": ["./src/Http.ts"],
       "@effect/ui/jsx-runtime": ["./src/JsxRuntime.ts"],
       "@effect/ui/jsx-dev-runtime": ["./src/JsxDevRuntime.ts"],
@@ -29,6 +31,7 @@
     "bench/Reactivity.ts",
     "tools/BrowserSmoke.ts",
     "tools/CleanDist.ts",
+    "tools/PackageSmoke.ts",
     "vite.config.ts"
   ]
 }

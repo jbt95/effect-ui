@@ -1,5 +1,5 @@
 import { Effect, Scope } from "effect"
-import { Signal } from "./Signal.js"
+import { Signal, type Source } from "./Signal.js"
 import {
   FixedRange,
   KeyToken,
@@ -75,11 +75,11 @@ export interface VirtualTable<Row, Column> {
   readonly columnCount: number
   readonly totalHeight: number
   readonly totalWidth: number
-  readonly state: Signal<VirtualTableState<Row, Column>>
-  readonly rows: Signal<ReadonlyArray<VirtualTableRow<Row, Column>>>
-  readonly rowRange: Signal<VirtualRange>
-  readonly columnRange: Signal<VirtualRange>
-  readonly activeDescendant: Signal<string | undefined>
+  readonly state: Source<VirtualTableState<Row, Column>>
+  readonly rows: Source<ReadonlyArray<VirtualTableRow<Row, Column>>>
+  readonly rowRange: Source<VirtualRange>
+  readonly columnRange: Source<VirtualRange>
+  readonly activeDescendant: Source<string | undefined>
   readonly attributes: {
     readonly id: string
     readonly role: "grid"
@@ -87,7 +87,7 @@ export interface VirtualTable<Row, Column> {
     readonly "aria-label": string
     readonly "aria-rowcount": number
     readonly "aria-colcount": number
-    readonly "aria-activedescendant": Signal<string | undefined>
+    readonly "aria-activedescendant": Source<string | undefined>
   }
   readonly rowAttributes: (row: VirtualTableRow<Row, Column>) => {
     readonly id: string
@@ -318,15 +318,15 @@ interface TableRuntime<Row, Column> extends TableData<Row, Column> {
 }
 
 interface TableSignals<Row, Column> {
-  readonly Rows: Signal<ReadonlyArray<VirtualTableRow<Row, Column>>>
-  readonly RowRange: Signal<VirtualRange>
-  readonly ColumnRange: Signal<VirtualRange>
-  readonly ActiveDescendant: Signal<string | undefined>
+  readonly Rows: Source<ReadonlyArray<VirtualTableRow<Row, Column>>>
+  readonly RowRange: Source<VirtualRange>
+  readonly ColumnRange: Source<VirtualRange>
+  readonly ActiveDescendant: Source<string | undefined>
 }
 
 const TableAttributes = <Row, Column>(
   Runtime: TableRuntime<Row, Column>,
-  ActiveDescendant: Signal<string | undefined>
+  ActiveDescendant: Source<string | undefined>
 ): VirtualTable<Row, Column>["attributes"] => ({
   id: Runtime.Options.id,
   role: "grid",
@@ -663,7 +663,7 @@ const InitialTableWindow = <Row, Column>(Data: TableData<Row, Column>): TableWin
   }
 }
 
-const make = <Row, Column>(
+export const make = <Row, Column>(
   Options: VirtualTableOptions<Row, Column>
 ): Effect.Effect<VirtualTable<Row, Column>, never, Scope.Scope> => {
   const Data = CreateTableData(Options)

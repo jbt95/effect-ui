@@ -13,8 +13,8 @@
   ],
   "license": "MIT",
   "files": [
-    "dist/*.js",
-    "dist/*.d.ts",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
     "LICENSE",
     "README.md",
     "docs/",
@@ -46,6 +46,118 @@
     "./http": {
       "types": "./dist/Http.d.ts",
       "import": "./dist/Http.js"
+    },
+    "./legacy": {
+      "types": "./dist/Legacy.d.ts",
+      "import": "./dist/Legacy.js"
+    },
+    "./Application": {
+      "types": "./dist/Application.d.ts",
+      "import": "./dist/Application.js"
+    },
+    "./Mount": {
+      "types": "./dist/Mount.d.ts",
+      "import": "./dist/Mount.js"
+    },
+    "./Component": {
+      "types": "./dist/Component.d.ts",
+      "import": "./dist/Component.js"
+    },
+    "./Element": {
+      "types": "./dist/Element.d.ts",
+      "import": "./dist/Element.js"
+    },
+    "./Signal": {
+      "types": "./dist/Signal.d.ts",
+      "import": "./dist/Signal.js"
+    },
+    "./Resource": {
+      "types": "./dist/Resource.d.ts",
+      "import": "./dist/Resource.js"
+    },
+    "./ResourceCache": {
+      "types": "./dist/ResourceCache.d.ts",
+      "import": "./dist/ResourceCache.js"
+    },
+    "./Async": {
+      "types": "./dist/Async.d.ts",
+      "import": "./dist/Async.js"
+    },
+    "./Lifecycle": {
+      "types": "./dist/Lifecycle.d.ts",
+      "import": "./dist/Lifecycle.js"
+    },
+    "./Action": {
+      "types": "./dist/Action.d.ts",
+      "import": "./dist/Action.js"
+    },
+    "./Form": {
+      "types": "./dist/Form.d.ts",
+      "import": "./dist/Form.js"
+    },
+    "./Ref": {
+      "types": "./dist/Ref.d.ts",
+      "import": "./dist/Ref.js"
+    },
+    "./Focus": {
+      "types": "./dist/Focus.d.ts",
+      "import": "./dist/Focus.js"
+    },
+    "./Transition": {
+      "types": "./dist/Transition.d.ts",
+      "import": "./dist/Transition.js"
+    },
+    "./Http": {
+      "types": "./dist/Http.d.ts",
+      "import": "./dist/Http.js"
+    },
+    "./Image": {
+      "types": "./dist/Image.d.ts",
+      "import": "./dist/Image.js"
+    },
+    "./Show": {
+      "types": "./dist/Show.d.ts",
+      "import": "./dist/Show.js"
+    },
+    "./For": {
+      "types": "./dist/For.d.ts",
+      "import": "./dist/For.js"
+    },
+    "./ErrorBoundary": {
+      "types": "./dist/ErrorBoundary.d.ts",
+      "import": "./dist/ErrorBoundary.js"
+    },
+    "./Router": {
+      "types": "./dist/Router.d.ts",
+      "import": "./dist/Router.js"
+    },
+    "./Route": {
+      "types": "./dist/Route.d.ts",
+      "import": "./dist/Route.js"
+    },
+    "./Navigation": {
+      "types": "./dist/Navigation.d.ts",
+      "import": "./dist/Navigation.js"
+    },
+    "./Link": {
+      "types": "./dist/Link.d.ts",
+      "import": "./dist/Link.js"
+    },
+    "./Virtualizer": {
+      "types": "./dist/Virtualizer.d.ts",
+      "import": "./dist/Virtualizer.js"
+    },
+    "./VirtualList": {
+      "types": "./dist/VirtualList.d.ts",
+      "import": "./dist/VirtualList.js"
+    },
+    "./VirtualTable": {
+      "types": "./dist/VirtualTable.d.ts",
+      "import": "./dist/VirtualTable.js"
+    },
+    "./Testing": {
+      "types": "./dist/Testing.d.ts",
+      "import": "./dist/Testing.js"
     }
   },
   "publishConfig": {
@@ -63,9 +175,10 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "vitest run",
+    "test:package": "bun run typecheck:package && bun run tools/PackageSmoke.ts",
     "test:browser": "bun run tools/BrowserSmoke.ts",
     "bench:runtime": "bun run bench/Reactivity.ts",
-    "ci": "bun run format:check && bun run typecheck && bun run lint && bun run test && bun run typecheck:package && bun run build"
+    "ci": "bun run format:check && bun run typecheck && bun run lint && bun run test && bun run test:package && bun run build"
   },
   "dependencies": {
     "effect": "^4.0.0"

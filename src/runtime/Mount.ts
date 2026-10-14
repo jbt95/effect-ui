@@ -1,5 +1,6 @@
 import { Cause, Effect, Exit, Fiber, Layer, ManagedRuntime, Scope } from "effect"
-import type { Component } from "../Component.js"
+import type { LegacyComponent as Component } from "../component/Legacy.js"
+import type { Local } from "../Component.js"
 import { combine, insert, noop, removeBetween, type Disposer, type Host } from "../Control.js"
 import type { Element, ElementChild, ElementProps } from "../Element.js"
 import { renderNode } from "./Renderer.js"
@@ -8,7 +9,7 @@ import {
   type LifecycleSlot,
   NoPendingMounts,
   RunMountCallbacks,
-  withLifecycleSlot
+  Service as LifecycleService
 } from "./Lifecycle.js"
 
 export interface Handle<R = never, E = never> {
@@ -20,10 +21,13 @@ export interface Handle<R = never, E = never> {
 export type MountOptions<P extends object = ElementProps> = {
   /** Receives failures from lifecycle callbacks, handlers, and reactive DOM updates. */
   readonly onError?: (error: unknown) => void
+  /** Internal adapter hook: scoped acquisition also awaits rollback of failed initial renders. */
+  readonly onFailedMountCleanup?: (cleanup: Promise<void>) => void
 } & ({} extends P ? { readonly props?: P } : { readonly props: P })
 
 class RootMountHost<P extends object, R, E> implements Host {
   private readonly MountQueue: Array<() => void> = []
+  private readonly PendingCleanups = new Set<Promise<void>>()
   private DeferMounts = true
   private FlushingMounts = false
   private RenderDepth = 0
@@ -108,7 +112,7 @@ class RootMountHost<P extends object, R, E> implements Host {
     try {
       this.flushMounts()
     } catch (error) {
-      void disposer().catch(this.reportError)
+      this.trackCleanup(disposer())
       throw error
     }
 
@@ -157,15 +161,28 @@ class RootMountHost<P extends object, R, E> implements Host {
     return this.interruptFiber(fiber)
   }
 
+  readonly trackCleanup: Host["trackCleanup"] = (cleanup) => {
+    const Pending = cleanup.catch(this.reportError)
+    this.PendingCleanups.add(Pending)
+    void Pending.then(() => this.PendingCleanups.delete(Pending))
+  }
+
+  readonly awaitCleanups = async (): Promise<void> => {
+    while (this.PendingCleanups.size > 0) await Promise.all(this.PendingCleanups)
+  }
+
+  readonly failedMountCleanup = (cleanup: Promise<void>): void => {
+    this.Settings.onFailedMountCleanup?.(cleanup)
+  }
+
   readonly createScope: Host["createScope"] = () =>
     this.Runtime.runSync(Scope.fork(this.Runtime.scope))
 
   readonly closeScope: Host["closeScope"] = (scope) =>
     this.Runtime.runPromise(Scope.close(scope, Exit.void))
 
-  readonly runComponent: Host["runComponent"] = (effect, scope) => {
-    // SAFETY: JSX erases nested component service requirements; the root runtime provides R.
-    const provided = Scope.provide(scope)(effect) as Effect.Effect<Element, unknown, R>
+  readonly runComponent: Host["runComponent"] = (effect, scope, slot) => {
+    const provided = Effect.provideService(Scope.provide(scope)(effect), LifecycleService, slot)
 
     return this.Runtime.runSync(provided)
   }
@@ -205,6 +222,8 @@ interface RootRange {
 
 interface RootMountAdapter extends Host {
   readonly close: () => void
+  readonly awaitCleanups: () => Promise<void>
+  readonly failedMountCleanup: (cleanup: Promise<void>) => void
   enableMounts(): void
 }
 
@@ -219,9 +238,9 @@ const disposeAfterMountFailure = <R, E>(
   Host: RootMountAdapter,
   Cleanup: Promise<void>
 ): void => {
-  void Cleanup.catch(Host.reportError)
-    .then(() => Runtime.dispose())
-    .catch(Host.reportError)
+  const pending = combine([() => Cleanup, Host.awaitCleanups, () => Runtime.dispose()])()
+  Host.failedMountCleanup(pending)
+  void pending.catch(Host.reportError)
 }
 
 const awaitRootAndRuntimeCleanup = async <R, E>(
@@ -260,7 +279,7 @@ const createRootDisposer = <R, E>(
     if (Disposal !== undefined) return Disposal
 
     Host.close()
-    const Cleanup = DisposeRoot()
+    const Cleanup = combine([DisposeRoot, Host.awaitCleanups])()
     removeRootRange(Range, true)
     Disposal = awaitRootAndRuntimeCleanup(Cleanup, Runtime)
 
@@ -276,7 +295,9 @@ const createRootScope = <R, E>(
     return Host.createScope()
   } catch (error) {
     Host.close()
-    void Runtime.dispose().catch(Host.reportError)
+    const cleanup = Runtime.dispose()
+    Host.failedMountCleanup(cleanup)
+    void cleanup.catch(Host.reportError)
     throw error
   }
 }
@@ -284,16 +305,21 @@ const createRootScope = <R, E>(
 const renderRootElement = <P extends object, E, R>(
   ComponentValue: Component<P, E, R>,
   Props: P,
-  Runtime: ManagedRuntime.ManagedRuntime<Exclude<R, Scope.Scope>, E>,
+  Runtime: ManagedRuntime.ManagedRuntime<Exclude<R, Local>, E>,
   Host: RootMountAdapter,
   RootScope: Scope.Closeable,
   RootSlot: LifecycleSlot,
   Range: RootRange
 ): Element => {
   try {
-    return withLifecycleSlot(RootSlot, () =>
-      Runtime.runSync(Scope.provide(RootScope)(ComponentValue.render(Props)))
-    )
+    // SAFETY: Both framework services were provided above; TS does not normalize nested generic Exclude operations.
+    const provided = Effect.provideService(
+      Scope.provide(RootScope)(ComponentValue.render(Props)),
+      LifecycleService,
+      RootSlot
+    ) as Effect.Effect<Element, E, Exclude<R, Local>>
+
+    return Runtime.runSync(provided)
   } catch (error) {
     Host.close()
     removeRootRange(Range, false)
@@ -382,7 +408,7 @@ const mountRoot = <P extends object, E, R>(
   ComponentValue: Component<P, E, R>,
   Container: HTMLElement,
   Props: P,
-  Runtime: ManagedRuntime.ManagedRuntime<Exclude<R, Scope.Scope>, E>,
+  Runtime: ManagedRuntime.ManagedRuntime<Exclude<R, Local>, E>,
   Host: RootMountAdapter
 ): Disposer => {
   const RootScope = createRootScope(Runtime, Host)
@@ -411,15 +437,15 @@ const mountRoot = <P extends object, E, R>(
 export function mount<P extends object = ElementProps, E = never, R = never>(
   component: Component<P, E, R>,
   container: HTMLElement,
-  layer: Layer.Layer<Exclude<R, Scope.Scope>, E, never>,
+  layer: Layer.Layer<Exclude<R, Local>, E, never>,
   ...options: {} extends P ? [options?: MountOptions<P>] : [options: MountOptions<P>]
-): Handle<Exclude<R, Scope.Scope>, E>
+): Handle<Exclude<R, Local>, E>
 export function mount<P extends object, E, R>(
   component: Component<P, E, R>,
   container: HTMLElement,
-  layer: Layer.Layer<Exclude<R, Scope.Scope>, E, never>,
+  layer: Layer.Layer<Exclude<R, Local>, E, never>,
   options?: MountOptions<P>
-): Handle<Exclude<R, Scope.Scope>, E> {
+): Handle<Exclude<R, Local>, E> {
   // SAFETY: The overload requires options.props for non-empty P; omission is valid only for {}.
   const settings: MountOptions<P> = options ?? ({} as MountOptions<P>)
   const runtime = ManagedRuntime.make(layer)

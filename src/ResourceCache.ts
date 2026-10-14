@@ -1,4 +1,4 @@
-import { Clock, Duration, Effect, Exit, Scope, Semaphore } from "effect"
+import { Clock, Context, Duration, Effect, Exit, Layer, Scope, Semaphore } from "effect"
 import { Resource, type Resource as ResourceValue } from "./Resource.js"
 
 interface ResourceCacheEntry<A, E> {
@@ -20,11 +20,20 @@ const EntriesKey: unique symbol = Symbol.for("@effect/ui/ResourceCache/entries")
 
 /** A typed, parameterized key whose loader and identity remain stable. */
 export interface ResourceCacheKey<Args, A, E, R> {
+  (args: Args): Effect.Effect<ResourceValue<A, E>, never, Cache | R>
   readonly id: string
   readonly identify: (args: Args) => string
   readonly load: (args: Args) => Effect.Effect<A, E, R>
   readonly staleTimeMillis: number
   readonly [EntriesKey]: WeakMap<CacheIdentity, Map<string, ResourceCacheEntry<A, E>>>
+}
+
+export class Cache extends Context.Service<Cache, ResourceCache>()("@effect/ui/ResourceCache") {}
+
+export interface KeyOptions<Args, A, E, R> {
+  readonly identify: (args: Args) => string
+  readonly load: (args: Args) => Effect.Effect<A, E, R>
+  readonly staleTime?: Duration.Input
 }
 
 export interface ResourceCache {
@@ -211,16 +220,23 @@ const makeKey = <Args, A, E, R>(
     throw new RangeError("[@effect/ui] resource cache stale time must not be negative")
   }
 
-  return {
+  let Key: ResourceCacheKey<Args, A, E, R>
+  Key = Object.assign((args: Args) => Cache.use((cache) => cache.get(Key, args)), {
     id: KeyId,
     identify: Identify,
     load: Load,
     staleTimeMillis: StaleTimeMillis,
-    [EntriesKey]: new WeakMap()
-  }
+    [EntriesKey]: new WeakMap<CacheIdentity, Map<string, ResourceCacheEntry<A, E>>>()
+  })
+
+  return Key
 }
 
-const make = Effect.fnUntraced(function* (): Effect.fn.Return<ResourceCache, never, Scope.Scope> {
+export const make = Effect.fnUntraced(function* (): Effect.fn.Return<
+  ResourceCache,
+  never,
+  Scope.Scope
+> {
   const CacheScope = yield* Effect.scope
   const CacheId: CacheIdentity = { owner: true }
   const Lock = yield* Semaphore.make(1)
@@ -244,4 +260,51 @@ const make = Effect.fnUntraced(function* (): Effect.fn.Return<ResourceCache, nev
   return { get, invalidate, clear }
 })
 
-export const ResourceCache = { make, key: makeKey }
+export function key<Args, A, E, R>(
+  id: string,
+  options: KeyOptions<Args, A, E, R>
+): ResourceCacheKey<Args, A, E, R>
+/** @deprecated Use key(id, { identify, load, staleTime }). */
+export function key<Args, A, E, R>(
+  id: string,
+  identify: (args: Args) => string,
+  load: (args: Args) => Effect.Effect<A, E, R>,
+  staleTime?: Duration.Input
+): ResourceCacheKey<Args, A, E, R>
+export function key<Args, A, E, R>(
+  id: string,
+  options: KeyOptions<Args, A, E, R> | ((args: Args) => string),
+  load?: (args: Args) => Effect.Effect<A, E, R>,
+  staleTime?: Duration.Input
+): ResourceCacheKey<Args, A, E, R> {
+  if (isOptions(options)) return makeKey(id, options.identify, options.load, options.staleTime)
+
+  if (load === undefined) throw new TypeError("[@effect/ui] a query requires a loader")
+
+  return makeKey(id, options, load, staleTime)
+}
+
+const isOptions = <Args, A, E, R>(
+  options: KeyOptions<Args, A, E, R> | ((args: Args) => string)
+): options is KeyOptions<Args, A, E, R> => typeof options !== "function"
+
+export const layer = Layer.effect(Cache, make())
+
+export const get = <Args, A, E, R>(query: ResourceCacheKey<Args, A, E, R>, args: Args) =>
+  query(args)
+
+export const invalidate = <Args, A, E, R>(query: ResourceCacheKey<Args, A, E, R>, args: Args) =>
+  Cache.use((cache) => cache.invalidate(query, args))
+
+export const clear = Cache.use((cache) => cache.clear)
+
+export const bind = Effect.fnUntraced(function* <Args, A, E, R>(
+  query: ResourceCacheKey<Args, A, E, R>
+) {
+  const cache = yield* Cache
+  const context = yield* Effect.context<R>()
+
+  return (args: Args) => Effect.provideContext(cache.get(query, args), context)
+})
+
+export const ResourceCache = { make, key, Cache, layer, get, invalidate, clear, bind }

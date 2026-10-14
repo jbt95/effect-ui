@@ -1,19 +1,26 @@
 import { Effect, Layer } from "effect"
-import { createRef, defineComponent, focus, Link, mount, Router, Signal } from "../../src/Index.js"
-import type { RouteDefinition } from "../../src/Index.js"
+import {
+  Application,
+  Component,
+  Focus,
+  Image,
+  Link,
+  Navigation,
+  Ref,
+  Route,
+  Router,
+  Signal
+} from "../../src/Index.js"
 
-const Counter = Effect.runSync(Signal.make(0))
-
-const SearchRef = createRef<HTMLInputElement>()
+const SearchRef = Ref.make<HTMLInputElement>()
 
 const AppContainer = document.querySelector<HTMLElement>("#app")!
 
 const Result = document.querySelector<HTMLOutputElement>("#result")!
 
 const Routes = [
-  { path: "/test/browser", render: () => <p id="route-content">home</p> },
-  {
-    path: "/about",
+  Route.make("/test/browser", { render: () => <p id="route-content">home</p> }),
+  Route.make("/about", {
     load: () =>
       Effect.promise(
         () =>
@@ -22,22 +29,37 @@ const Routes = [
           })
       ),
     pending: <p id="route-pending">loading about</p>
-  }
-] satisfies ReadonlyArray<RouteDefinition>
+  })
+] satisfies ReadonlyArray<Router.RouteDefinition>
 
-const App = defineComponent(() =>
-  Effect.succeed(
-    <section>
+const CounterView = Component.local(() =>
+  Effect.gen(function* () {
+    const Counter = yield* Signal.make(0)
+
+    return (
       <button id="increment" onClick={Counter.update((value) => value + 1)}>
         Count: {Counter}
       </button>
-      <input ref={SearchRef} aria-label="Search" />
-      <Link to="/about" id="about-link">
-        About
-      </Link>
-      <Router routes={Routes} notFound={<p>missing route</p>} />
-    </section>
-  )
+    )
+  })
+)
+
+const App = Application.make<Navigation.Service>()(
+  Effect.gen(function* () {
+    const Anchor = yield* Link.make()
+    const Outlet = yield* Router.make({ routes: Routes, notFound: <p>missing route</p> })
+
+    return (
+      <section>
+        <CounterView />
+        <input ref={SearchRef} aria-label="Search" />
+        <Anchor to="/about" id="about-link">
+          About
+        </Anchor>
+        <Outlet />
+      </section>
+    )
+  })
 )
 
 const waitFor = async (Predicate: () => boolean): Promise<void> => {
@@ -50,11 +72,72 @@ const waitFor = async (Predicate: () => boolean): Promise<void> => {
   }
 }
 
+const CheckImageCallback = async (DecodeFails: boolean): Promise<void> => {
+  const Container = document.createElement("div")
+  let CallbackTarget: HTMLImageElement | undefined
+  let Failure: unknown
+
+  const CaptureTarget = (
+    EventValue: Event & { readonly currentTarget: HTMLImageElement }
+  ): void => {
+    // Exercise browser-native getters and methods, not just Happy DOM's Event implementation.
+    EventValue.returnValue = false
+    EventValue.cancelBubble = true
+    EventValue.preventDefault()
+
+    if (!(EventValue instanceof Event) || EventValue.currentTarget.localName !== "img") {
+      throw new Error("Image callback lost its native event or image target")
+    }
+
+    CallbackTarget = EventValue.currentTarget
+  }
+
+  const ImageApp = Application.make()(
+    Effect.succeed(
+      <Image.View
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E"
+        alt="Smoke test image"
+        width={1}
+        height={1}
+        loading="eager"
+        decode
+        onLoad={DecodeFails ? undefined : CaptureTarget}
+        onError={DecodeFails ? CaptureTarget : undefined}
+      />
+    )
+  )
+
+  const Handle = await Application.start(ImageApp, Container, Layer.empty, {
+    onError: (Error) => {
+      Failure = Error
+    }
+  })
+
+  try {
+    const ImageElement = Container.querySelector("img")!
+
+    if (DecodeFails)
+      ImageElement.decode = () => Promise.reject(new Error("Expected decode failure"))
+
+    await waitFor(() => CallbackTarget !== undefined || Failure !== undefined)
+
+    if (Failure !== undefined) throw Failure
+
+    if (CallbackTarget !== ImageElement)
+      throw new Error("Image callback did not preserve currentTarget")
+  } finally {
+    await Handle.dispose()
+  }
+}
+
 const RunSmokeTest = async (): Promise<void> => {
   let Dispose: (() => Promise<void>) | undefined
 
   try {
-    const Handle = mount(App, AppContainer, Layer.empty)
+    await CheckImageCallback(false)
+    await CheckImageCallback(true)
+
+    const Handle = await Application.start(App, AppContainer, Navigation.browserLayer)
     Dispose = Handle.dispose
 
     if (AppContainer.textContent?.includes("home") !== true) {
@@ -76,7 +159,7 @@ const RunSmokeTest = async (): Promise<void> => {
       throw new Error("Link active and current-page state did not update after navigation")
     }
 
-    const Focused = await Effect.runPromise(focus(SearchRef))
+    const Focused = await Effect.runPromise(Focus.focus(SearchRef))
 
     if (!Focused) throw new Error("Focus helper failed to focus its mounted input")
 

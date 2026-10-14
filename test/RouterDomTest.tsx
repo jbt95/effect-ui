@@ -9,7 +9,7 @@ import {
   Router,
   type RouteDefinition,
   type RouteLocation
-} from "../src/Index.js"
+} from "../src/Legacy.js"
 
 // @ts-expect-error Route renderers, loaders, and lazy imports are mutually exclusive.
 const InvalidMixedRoute: RouteDefinition = {

@@ -92,4 +92,6 @@ export const throughBff = <E, R>(
 ): EffectHttpClient.HttpClient.With<E, R> =>
   Client.pipe(EffectHttpClient.mapRequest(HttpClientRequest.prependUrl(NormalizeBffPrefix(Prefix))))
 
-export const Http = { browserLayer, json, withBaseUrl, throughBff }
+export const layer = browserLayer
+
+export const Http = { layer, browserLayer, json, withBaseUrl, throughBff }

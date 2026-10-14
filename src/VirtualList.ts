@@ -1,5 +1,5 @@
 import { Effect, Scope } from "effect"
-import { Signal } from "./Signal.js"
+import { Signal, type Source } from "./Signal.js"
 import {
   FixedRange,
   KeyToken,
@@ -55,17 +55,17 @@ export interface VirtualList<A> {
   readonly ariaLabel: string
   readonly itemCount: number
   readonly totalSize: number
-  readonly state: Signal<VirtualListState<A>>
-  readonly rows: Signal<ReadonlyArray<VirtualListRow<A>>>
-  readonly range: Signal<VirtualRange>
-  readonly activeIndex: Signal<number>
-  readonly activeDescendant: Signal<string | undefined>
+  readonly state: Source<VirtualListState<A>>
+  readonly rows: Source<ReadonlyArray<VirtualListRow<A>>>
+  readonly range: Source<VirtualRange>
+  readonly activeIndex: Source<number>
+  readonly activeDescendant: Source<string | undefined>
   readonly attributes: {
     readonly id: string
     readonly role: "listbox"
     readonly tabIndex: 0
     readonly "aria-label": string
-    readonly "aria-activedescendant": Signal<string | undefined>
+    readonly "aria-activedescendant": Source<string | undefined>
   }
   readonly optionAttributes: (row: VirtualListRow<A>) => {
     readonly id: string
@@ -304,15 +304,15 @@ interface ListRuntime<A> {
 }
 
 interface ListSignals<A> {
-  readonly Rows: Signal<ReadonlyArray<VirtualListRow<A>>>
-  readonly Range: Signal<VirtualRange>
-  readonly ActiveIndex: Signal<number>
-  readonly ActiveDescendant: Signal<string | undefined>
+  readonly Rows: Source<ReadonlyArray<VirtualListRow<A>>>
+  readonly Range: Source<VirtualRange>
+  readonly ActiveIndex: Source<number>
+  readonly ActiveDescendant: Source<string | undefined>
 }
 
 const ListAttributes = <A>(
   Options: VirtualListOptions<A>,
-  ActiveDescendant: Signal<string | undefined>
+  ActiveDescendant: Source<string | undefined>
 ): VirtualList<A>["attributes"] => ({
   id: Options.id,
   role: "listbox",
@@ -521,7 +521,7 @@ const RegisterListLifetime = () =>
     return Lifetime
   })
 
-const make = <A>(
+export const make = <A>(
   Options: VirtualListOptions<A>
 ): Effect.Effect<VirtualList<A>, never, Scope.Scope> => {
   ValidateOptions(Options)

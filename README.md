@@ -1,528 +1,342 @@
 # @effect/ui
 
-A client-side JSX UI library with **Effect-powered components** and
-**fine-grained signals**. Components run once to build their tree; signals update
-the DOM bindings that use them, without rerendering the component.
+A browser JSX UI library with **Effect-native acquisition**, **scoped lifetimes**,
+and **fine-grained signals**. Components build their tree once; signals update
+the DOM bindings that use them without rerendering the component.
 
-```tsx
-import { defineComponent, mount } from "@effect/ui"
-import { Effect } from "effect"
+Built on Effect v4. The package is private and pre-1.0; the current API uses
+module namespaces and acquired, dependency-closed JSX tags.
 
-const CounterView = defineComponent(() =>
-  Effect.gen(function* () {
-    const counter = yield* Counter
-    return <button onClick={counter.increment}>Count: {counter.count}</button>
-  })
-)
+## Getting started
 
-const app = mount(CounterView, document.querySelector("#app")!, Counter.layer)
+The package is not public yet. Once a release is available, install
+`@effect/ui` and `effect` with your package manager. Use a TypeScript-aware
+browser bundler and this JSX configuration:
 
-// Later, typically when the containing application unmounts:
-await app.dispose()
-```
-
-Built on Effect v4. This project currently targets the browser DOM; server
-components and server rendering are intentionally out of scope.
-
-## Composition
-
-Create a component from a synchronous props-to-JSX function and compose it like
-any JSX tag:
-
-```tsx
-const Greeting = defineComponent((props: { name: string }) => <p>Hello, {props.name}!</p>)
-
-const Page = defineComponent(() => (
-  <main>
-    <Greeting name="Ada" />
-  </main>
-))
-```
-
-Use an Effect-returning renderer when a component needs services, scoped setup,
-or other Effect operations. The root component is mounted with the services
-supplied by its `Layer`; nested components share that runtime. Each component
-also gets its own Effect scope, so `Signal.map`, `Effect.forkScoped`, and
-finalizers are disposed when that component's subtree is removed.
-
-## Signals and control flow
-
-```tsx
-const visible = yield * Signal.make(true)
-const label = yield * Signal.make("ready")
-
-return (
-  <section class={label}>
-    <Show when={visible} fallback={<p>Hidden</p>}>
-      <p>{label}</p>
-    </Show>
-    <For each={todos} keyOf={(todo: Todo) => todo.id}>
-      {(todo: Todo) => <TodoRow todo={todo} />}
-    </For>
-  </section>
-)
-```
-
-- `class` and `className` accept strings, nested arrays, and conditional maps.
-  A `Signal` can update the full class value without a component rerun.
-- `style` accepts CSS text or a property object, and either form can use a
-  `Signal`. Numeric values become pixels except for unitless properties; custom
-  properties such as `--accent` are supported.
-- Signal change streams emit the initial value and every write in order.
-  Reactive DOM bindings batch writes in a microtask and apply only the latest
-  value per binding; re-entrant writes run in the next flush. Initial DOM values
-  are synchronous, and disposing a subtree cancels any queued binding updates.
-- `startTransition(effect)` yields to the Effect scheduler at lower priority
-  before running the action. Its error, environment, and interruption behavior
-  are preserved; this schedules work but does not animate DOM changes.
-- `Signal.memo(dependencies, select, equals?)` caches an expensive derived
-  value, recomputes only when one of the explicit signals changes, and emits
-  only when its equality predicate reports a changed result. Its subscriptions
-  are interrupted with the surrounding Effect scope.
-- Common form properties (`value`, `checked`, and `selected`) bind to the live
-  DOM property, so a signal update controls the input without a component rerun.
-- The renderer rejects script elements, SVG SMIL animation elements, and
-  `iframe srcdoc`.
-- It rejects `javascript:` and `vbscript:` URL schemes. It blocks `data:` URLs
-  in embedded document elements.
-- Raw markup/content sinks (`innerHTML`, `outerHTML`, and `textContent`) are not
-  supported; render child nodes instead.
-- `Show.when` accepts a boolean or `Signal<boolean>`. Its active branch is
-  mounted on entry and disposed on exit.
-- `For.each` accepts an array or `Signal<ReadonlyArray<A>>`. `keyOf` defaults to
-  item identity. Reorders move existing keyed subtrees; removed rows dispose
-  their scopes. Replacing an item's object while retaining its key remounts that
-  row so its snapshot props stay current; prefer immutable item updates.
-  If a replacement row fails to render, the row is removed and reported through
-  `onError`; a later valid update can recreate it.
-
-## Routing
-
-`Router` reads the browser path and renders the first matching route. Root route
-paths start with `/`; nested child paths are relative. `:name` segments capture
-path parameters, and trailing slashes do not change a match. Each route receives
-`params`, `pathname`, `search`, and `hash`. Use `notFound` for global unmatched
-paths (`fallback` remains as a deprecated alias). Nested routes can add layouts,
-route-local error UI, and not-found views for unmatched descendants.
-
-```tsx
-import { defineComponent, Router, type RouteDefinition } from "@effect/ui"
-
-const Routes: ReadonlyArray<RouteDefinition> = [
-  { path: "/", render: () => <Home /> },
-  {
-    path: "/users",
-    layout: (_location, child) => <UserLayout>{child}</UserLayout>,
-    notFound: <NotFound />,
-    children: [
-      {
-        path: ":id",
-        load: ({ params }) =>
-          api.loadUser(params.id).pipe(Effect.map((user) => <User user={user} />)),
-        pending: <p>Loading user…</p>,
-        error: (cause) => <p>Could not load user: {String(cause)}</p>
-      }
-    ]
-  },
-  {
-    path: "/reports",
-    lazy: () => import("./routes/Reports.js"),
-    pending: <p>Loading reports…</p>,
-    error: (cause) => <p>Could not load reports: {String(cause)}</p>
-  }
-]
-
-const App = defineComponent(() => (
-  <Router
-    routes={Routes}
-    notFound={<NotFound />}
-    onBeforeNavigate={({ from, to }) => console.log("Navigating", from.pathname, to.pathname)}
-  />
-))
-```
-
-`RouteDefinition.lazy` can dynamically import a module whose default export
-renders the matched page; its `pending` view appears during import, nested
-layouts still wrap it, and leaving the route cancels the render
-continuation. Lazy imports are deduplicated per router, and a failed import can
-be retried through route error UI reset.
-
-`Link` renders a semantic anchor, updates `data-active` and `aria-current="page"`
-as the URL changes, and supports `end` matching and replace navigation. By
-default it prefetches matching lazy modules on pointer hover or keyboard focus;
-set `prefetch={false}` to opt out. Modified clicks, downloads, target links, and external destinations keep browser
-behavior. Hash-only links keep native scrolling. `Navigate("/users/42")` returns
-an `Effect` for programmatic navigation; pass it directly to an event prop or
-yield it from another Effect. Use `{ replace: true }` to replace the current
-history entry. Router navigation preserves the current `history.state` value.
-
-Route `load` functions return a closed Effect that produces route content. The
-route's `pending` view appears while it runs; leaving the route interrupts the
-loader, and router disposal also cancels it. A route `error` boundary handles
-its render, event, reactive-update, and loader failures. `onBeforeNavigate` and
-`onAfterNavigate` receive `{ from, to, kind }`; hook exceptions are reported
-through the nearest error boundary or mount-level `onError`. Native browser
-scroll restoration is left enabled by default; `scrollRestoration="manual"`
-opts into manual browser control while that router is mounted.
-
-Matched routes can contribute document metadata. Parent values are inherited,
-and deeper routes override individual fields. A missing value restores what was
-in the document before the router mounted; disposing a router also restores its
-previous values.
-
-```tsx
+```json
 {
-  path: "/members/:id",
-  metadata: ({ params }) => ({
-    title: `Member ${params.id} — Directory`,
-    description: `Profile information for ${params.id}.`
-  }),
-  render: ({ params }) => <Member id={params.id} />
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@effect/ui",
+    "strict": true
+  }
 }
 ```
 
-## Large collections
-
-`VirtualList.make` and `VirtualTable.make` are headless, scope-owned controllers
-for fixed-size data. They render only visible items plus `overscan`, require
-stable unique string or finite-number keys, and expose listbox/grid ARIA
-attributes and keyboard navigation. The host owns the scrollable element and
-positions each item at its `start` offset; pass browser scroll values to
-`onScroll`, viewport changes to `resize`, and apply returned keyboard scroll
-offsets to the element. `Virtualizer.fixedRange` is also available as a pure
-fixed-size geometry helper.
+Add `<div id="app"></div>` to your page, then start an application:
 
 ```tsx
-const people =
-  yield *
-  VirtualList.make({
-    id: "people",
-    ariaLabel: "People",
-    items,
-    keyOf: (person) => person.id,
-    itemSize: 44,
-    viewportSize: 220,
-    overscan: 3
-  })
+import { Application, Component, Signal } from "@effect/ui"
+import { Effect, Layer } from "effect"
 
-return (
-  <div {...people.attributes} onScroll={(event) => people.onScroll(event.currentTarget.scrollTop)}>
-    <div style={{ height: `${people.totalSize}px`, position: "relative" }}>
-      <For each={people.rows} keyOf={(row) => row.key}>
-        {(row) => (
-          <div
-            {...people.optionAttributes(row)}
-            style={{ position: "absolute", top: `${row.start}px` }}
-          >
-            {row.item.name}
-          </div>
-        )}
-      </For>
-    </div>
-  </div>
+const Counter = Component.local(() =>
+  Effect.gen(function* () {
+    const count = yield* Signal.make(0)
+    return <button onClick={count.update((n) => n + 1)}>Count: {count}</button>
+  })
+)
+
+const App = Application.make()(Effect.succeed(<Counter />))
+const running = await Application.start(
+  App,
+  document.querySelector<HTMLElement>("#app")!,
+  Layer.empty
+)
+
+// At application shutdown, await all instance and service finalizers.
+await running.dispose()
+```
+
+The final line is the shutdown path, not part of normal startup. A host should
+retain the handle and await disposal when removing the application. The browser
+demo also registers page cleanup; browsers cannot guarantee completion of async
+work during document shutdown.
+
+Only ESM entry points are provided. `ESNext.Disposable` supplies types used by
+Effect's declarations; it does not enable SSR or require a browser polyfill.
+
+## Acquire dependencies, then compose JSX
+
+`Component.make` is an Effect that acquires application dependencies and returns
+a closed JSX tag. Acquire services **before** returning the renderer; create
+instance state, resources, selectors, and lifecycle actions **inside** it.
+
+```tsx
+import { Application, Component, Lifecycle, Signal } from "@effect/ui"
+import { Context, Effect, Layer } from "effect"
+
+class Labels extends Context.Service<Labels, { readonly counter: string }>()("Labels") {}
+
+const Counter = Component.make(
+  Effect.gen(function* () {
+    const labels = yield* Labels
+    return (props: { readonly initial: number }) =>
+      Effect.gen(function* () {
+        const count = yield* Signal.make(props.initial)
+        yield* Lifecycle.onMount(Effect.sync(() => console.info("Counter mounted")))
+        yield* Lifecycle.onCleanup(Effect.sync(() => console.info("Counter removed")))
+        return (
+          <button onClick={count.update((n) => n + 1)}>
+            {labels.counter}: {count}
+          </button>
+        )
+      })
+  })
+)
+
+const App = Application.make<Labels>()(
+  Effect.gen(function* () {
+    const CounterView = yield* Counter
+    return (
+      <main>
+        <CounterView initial={0} />
+        <CounterView initial={10} />
+      </main>
+    )
+  })
+)
+
+const running = await Application.start(
+  App,
+  document.querySelector<HTMLElement>("#app")!,
+  Layer.succeed(Labels, { counter: "Count" })
 )
 ```
 
-Collections are snapshotted when a controller is created. Recreate it in the
-owning scope when the collection or its key set changes. `example/Virtualized.tsx`
-demonstrates a keyboard-accessible list and a two-dimensional virtual grid,
-including resize observation and scroll synchronization.
+Each mounted counter has independent state. `Component.local(renderer)` declares
+a tag needing only instance scope/lifecycle; `Component.sync(renderer)` declares
+a pure props-to-JSX tag. Public types live in their namespaces, such as
+`Component.Component<Props, Error>` and `Element.ElementChild`.
 
-## Images
+`Application.make<R>()` declares the application's service contract explicitly.
+Ordinary JSX does **not** infer a tree-wide environment: acquire factories in
+the assembly Effect, then compose their closed tags. Async service acquisition
+and layers are supported; component rendering itself remains synchronous. Use
+`Async.View` for asynchronous DOM content.
 
-`Image` renders a native `<img>` and defaults to browser-native lazy loading.
-It requires meaningful `alt` text (or `alt=""` for decoration) and intrinsic
-`width`/`height` to reserve layout space. An accessible fallback is shown after
-a load or optional decode failure; pass `fallback` for application-specific
-error UI. `Image.preload(src, options)` returns an Effect that preloads and
-optionally decodes with the browser image loader and HTTP cache. It does not
-maintain a separate byte cache or require a build tool.
+## Signals and control flow
+
+`Signal.make` returns `Signal.Writable<A>`. `Signal.map` and `Signal.memo`
+return read-only `Signal.Source<A>` values; yield a source or its `get` Effect
+to read it. `.value` is a synchronous snapshot. Reactive native props retain
+their scalar type: a string source cannot be used for `disabled`.
 
 ```tsx
-import { Image } from "@effect/ui"
-
-;<Image
-  src="/images/hero.webp"
-  alt="A mountain at sunrise"
-  width={1280}
-  height={720}
-  loading="lazy"
-  decode
-  fallback={<p role="status">Image unavailable</p>}
-/>
+const Tasks = Component.local(() =>
+  Effect.gen(function* () {
+    const visible = yield* Signal.make(true)
+    const todos = yield* Signal.make<ReadonlyArray<{ id: number; title: string }>>([])
+    const count = yield* Signal.map(todos, (items) => items.length)
+    return (
+      <section>
+        <p>Tasks: {count}</p>
+        <Show.View when={visible} fallback={<p>Hidden</p>}>
+          <For.View each={todos} keyOf={(todo) => todo.id}>
+            {(todo) => <p>{todo.title}</p>}
+          </For.View>
+        </Show.View>
+      </section>
+    )
+  })
+)
 ```
 
-## Asynchronous subtrees
+Import `Show` and `For` from `@effect/ui` for this snippet.
 
-Use `<Async>` to initialize a subtree from a closed Effect without blocking
-`mount()`. The fallback is shown while the Effect runs; an optional `error`
-renderer provides local failure UI. Pending work is interrupted when the async
-subtree is removed.
+- `class`/`className` accept strings, nested arrays, and conditional maps;
+  `style` accepts CSS text or a property object. Both accept reactive sources.
+- DOM writes batch in a microtask; initial values are synchronous, and disposing
+  a subtree cancels queued bindings. Signal streams expose writes independently
+  of DOM coalescing.
+- `Show.View` mounts and disposes its active branch. `For.View` moves retained
+  keyed rows, disposes removed rows, and remounts an immutable replacement item
+  with the same key so snapshot props stay current.
+- `Transition.start(effect)` yields to a lower-priority scheduler turn. It
+  preserves the Effect's error/environment/interruption behavior, not animations.
+
+## Resources, async views, and HTTP
+
+Keep loaded **data** separate from its success renderer:
 
 ```tsx
-<Async
-  effect={Effect.map(api.loadProfile(userId), (profile) => (
-    <Profile profile={profile} />
-  ))}
-  fallback={<p>Loading profile…</p>}
-  error={(cause) => <p>Could not load profile: {String(cause)}</p>}
-/>
+import { Async, Component, Http, ResourceCache } from "@effect/ui"
+import { Effect, Schema } from "effect"
+
+const User = Schema.Struct({ id: Schema.String, name: Schema.String })
+const UserQuery = ResourceCache.key("user", {
+  identify: (id: string) => id,
+  load: (id) => Http.json(Http.HttpClientRequest.get(`/users/${id}`), User),
+  staleTime: "1 minute"
+})
+
+const Profile = Component.make(
+  Effect.gen(function* () {
+    const lookup = yield* ResourceCache.bind(UserQuery)
+    return (props: { readonly id: string }) =>
+      Effect.gen(function* () {
+        const user = yield* lookup(props.id)
+        return (
+          <section>
+            <Async.View
+              source={user}
+              pending={<p role="status">Loading…</p>}
+              success={(value) => <h2>{value.name}</h2>}
+              failure={() => <p role="alert">Could not load the profile.</p>}
+            />
+            <button onClick={user.refresh}>Refresh</button>
+          </section>
+        )
+      })
+  })
+)
 ```
 
-For work that needs explicit refresh/cancel state, create an Effect-native
-`Resource` in an Effect component and pass it to `<Async>`. It exposes
-`pending`, `success`, `failure`, and `cancelled` states. Refresh interrupts the
-previous load, and `<Async>` keeps the last successful subtree visible while a
-refresh is pending.
+Acquire `Profile` inside an
+`Application.make<ResourceCache.Cache | Http.HttpClient.HttpClient>()` assembly
+and start it with `Layer.mergeAll(ResourceCache.layer, Http.layer())`.
+Queries are inert definitions: invoking a query produces an Effect requiring
+the cache and loader services; `ResourceCache.bind` captures those dependencies
+before a query enters an instance renderer.
+
+`Resource.make(effect)` is the per-instance alternative without a shared cache.
+Resources expose read-only pending/success/failure/cancelled state, `refresh`,
+and `cancel`. `Async.View` accepts a Resource or a closed Effect, interrupts
+scoped pending work on removal, and retains successful DOM during refresh.
+Its `failure` renderer receives a typed `Cause<E>`.
+
+`Http.layer(options)` provides Effect's Fetch client and shared middleware.
+`Http.json(request, schema)` checks success status and decodes JSON. HTTP modules
+are available as `Http.HttpClient`, `Http.HttpClientRequest`, and
+`Http.HttpClientResponse`. BFF rewriting is a same-origin path helper, not a
+CORS bypass or browser-side proxy. See [`example/Http.tsx`](example/Http.tsx).
+
+## Navigation
 
 ```tsx
-import { Async, Resource, ResourceCache, defineComponent } from "@effect/ui"
+import { Application, Link, Navigation, Route, Router } from "@effect/ui"
 import { Effect } from "effect"
 
-const Profile = defineComponent((props: { userId: string }) =>
+const App = Application.make<Navigation.Service>()(
   Effect.gen(function* () {
-    const profile = yield* Resource.make(
-      Effect.map(api.loadProfile(props.userId), (user) => <ProfileCard user={user} />)
-    )
-
-    return (
-      <Async
-        resource={profile}
-        fallback={<p>Loading profile…</p>}
-        error={(cause) => <p role="alert">Could not load profile: {String(cause)}</p>}
-      />
-    )
-  })
-)
-```
-
-Use `ResourceCache` when multiple views should share a request or its result.
-Create it in a long-lived component scope and share it with descendants; it is
-not global. `ResourceCache.key(id, identify, load, staleTime)` binds a stable
-loader to a key. The same key and identified arguments share in-flight work;
-completed entries are reused until stale and then refreshed. The default stale
-time is zero, so only in-flight work is deduplicated unless you set a duration.
-`invalidate(key, args)` and `clear` remove entries and interrupt their active
-loads.
-
-```tsx
-const ProfileKey = ResourceCache.key(
-  "profile",
-  (id: string) => id,
-  (id: string) => Effect.map(api.loadProfile(id), (user) => <ProfileCard user={user} />),
-  "5 minutes"
-)
-
-const CachedProfile = defineComponent((props: { cache: ResourceCache; userId: string }) =>
-  Effect.gen(function* () {
-    const resource = yield* props.cache.get(ProfileKey, props.userId)
-
-    return <Async resource={resource} fallback={<p>Loading profile…</p>} />
-  })
-)
-```
-
-## HTTP requests
-
-The `@effect/ui/http` entry point exposes Effect's HTTP client modules, while
-`Http` provides a browser Fetch layer and small URL helpers. This keeps request
-transforms, response transforms, retries, status handling, and schema decoding
-on Effect's existing HTTP implementation instead of maintaining a second
-transport API.
-
-```tsx
-import { Http, ResourceCache } from "@effect/ui"
-import { HttpClient, HttpClientRequest } from "@effect/ui/http"
-import { Schema } from "effect"
-
-const Profile = Schema.Struct({ id: Schema.String, name: Schema.String })
-
-const ProfileKey = ResourceCache.key(
-  "profile",
-  (id: string) => id,
-  (id) => Http.json(HttpClientRequest.get(`/users/${id}`), Profile),
-  "1 minute"
-)
-
-const HttpLayer = Http.browserLayer({
-  requestInit: { credentials: "include" },
-  configureClient: (client) =>
-    Http.throughBff(client, "/bff").pipe(
-      HttpClient.mapRequest(HttpClientRequest.setHeader("x-app", "web"))
-    )
-})
-```
-
-`Http.json(request, schema)` uses the configured client, requires a successful
-status, and decodes the JSON body. Provide `HttpLayer` where the query Effect
-runs. Configure shared request/response middleware once with
-`HttpClient.mapRequest` and `HttpClient.transformResponse`; use
-`HttpClient.retryTransient` for Effect-managed retries. The scope-owned
-`ResourceCache` shares in-flight queries and provides stale-time/revalidation;
-there is no competing global data cache. `Http.throughBff` prefixes relative
-browser URLs with a same-origin BFF path. It cannot bypass CORS or create a
-transparent network proxy; the BFF must run server-side. `browserLayer` accepts
-a custom Fetch-compatible transport for tests/adapters. See `example/Http.tsx`
-for a deterministic demo.
-
-## Error boundaries
-
-`<ErrorBoundary>` catches descendant render failures, event Effect failures, and
-reactive DOM-update failures. Its `fallback` can be static content or a builder
-receiving the failure and a `reset()` action. Reset disposes and recreates the
-descendant subtree. Errors raised by the fallback itself are sent to an outer
-boundary or the mount-level `onError` handler.
-
-```tsx
-<ErrorBoundary
-  fallback={(cause, reset) => (
-    <section role="alert">
-      <p>{String(cause)}</p>
-      <button onClick={() => reset()}>Try again</button>
-    </section>
-  )}
->
-  <Profile />
-</ErrorBoundary>
-```
-
-## Forms and accessibility
-
-Use `value`/`checked` with Signals for controlled fields, or
-`defaultValue`/`defaultChecked` for native uncontrolled fields. Controlled
-fields restore their Signal value after an uncanceled native form reset.
-`onInput` and composition callbacks receive native events with the concrete
-input element as `currentTarget`.
-
-`createForm` provides controlled values, validation issues, submitting state,
-reset, and an `onSubmit` callback that prevents native navigation. Use
-`Form.field(form.values, "email")` for a reactive field signal with safe `set`
-and `update` actions instead of repeating immutable object updates. The
-validator returns user-facing issues as data; failed validation/submission
-Effects remain typed and propagate to an enclosing boundary or `onError`.
-
-```tsx
-const ContactForm = defineComponent(() =>
-  Effect.gen(function* () {
-    const form = yield* createForm({
-      initial: { email: "" },
-      validate: ({ email }) => Effect.succeed(email.includes("@") ? [] : ["Enter an email"]),
-      onSubmit: (values) => api.save(values)
+    const Anchor = yield* Link.make()
+    const Outlet = yield* Router.make({
+      routes: [
+        Route.make("/", { render: () => <p>Home</p> }),
+        Route.make("/about", { render: () => <p>About</p> })
+      ],
+      notFound: <p>Page not found</p>
     })
-    const email = yield* Form.field(form.values, "email")
-
     return (
-      <form onSubmit={form.onSubmit}>
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          value={email.value}
-          onInput={(event) => email.set(event.currentTarget.value)}
-        />
-        <button type="submit" disabled={form.submitting}>
-          Save
-        </button>
-      </form>
+      <>
+        <Anchor to="/about">About</Anchor>
+        <Outlet />
+      </>
     )
   })
 )
 ```
 
-`focus(ref)`, `blur(ref)`, and `focusFirst(containerRef)` provide focus
-management for mounted HTML elements. The library does not impose a focus trap
-or replace native keyboard behavior; use semantic HTML, labels, and ARIA where
-appropriate.
+Start with `Navigation.browserLayer`, or use `Navigation.memoryLayer("/")` for
+tests/adapters. `Route.make` is a pure declaration. Routes support nested
+layouts, closed async loaders, lazy modules, pending/error UI, and inherited
+title/description metadata. Acquire loader dependencies before defining routes.
 
-## Lifecycle and events
+Acquired links are semantic anchors with active/current-page state and lazy-route
+intent prefetching. Modified clicks, external links, downloads, target links,
+and hash scrolling retain native behavior. `Navigation.navigate` and
+`Navigation.prefetch` require the navigation service; use `Action.bind` during
+acquisition to expose closed event actions.
 
-Yield lifecycle effects from a component:
+## Forms, images, and lifecycle
 
-```tsx
-const Panel = defineComponent(() =>
-  Effect.gen(function* () {
-    yield* onMount(() => console.log("mounted"))
-    yield* onCleanup(() => console.log("removed"))
-    return <section>...</section>
-  })
-)
-```
+- `Form.make({ initial, validate, onSubmit })` creates controlled values,
+  read-only errors/submitting state, and closed submit/reset actions.
+  `Form.field(values, key)` provides a reactive field and immutable writes.
+  `form.onSubmit` prevents native navigation; other events do not automatically
+  prevent browser defaults. See [`example/Directory.tsx`](example/Directory.tsx).
+- `Ref.make<T>()` declares a native-element ref, assigned on insertion and
+  cleared on disposal. `Focus.focus`, `Focus.blur`, and `Focus.first` are Effects;
+  they do not implement focus trapping or restoration.
+- `Image.View` (or `yield* Image.make(props)`) renders a native image with required
+  `alt`, `width`, and `height`, lazy loading by default, optional `decode`, and a
+  failure fallback. `Image.preload` uses the native browser loader/cache.
+- `Lifecycle.onMount(action)` and `Lifecycle.onCleanup(action)` accept Effects,
+  not callbacks. Wrap native work in `Effect.sync`/`Effect.promise`. Cleanup must
+  have no expected errors; handle those before registration. Instance finalizers,
+  selectors, and forked fibers live until their subtree is disposed.
+- Event props accept closed Effects or native callbacks returning void/a closed
+  Effect. Failures go to `ErrorBoundary.View` or mount-level `onError`; running
+  event Effects are interrupted on element disposal. A boundary reset recreates
+  its descendants, but a boundary is not a security boundary.
 
-`onMount` callbacks run after the initial tree (or a dynamically inserted
-subtree) is in place; `onCleanup` runs when the subtree is disposed. Both may
-return promises. `dispose()` waits for pending mount callbacks before it runs
-cleanup callbacks. Event props accept closed Effects (`R = never`), so expose
-ready-to-run actions from services and pass them directly, e.g.
-`onClick={counter.increment}`. They also accept native-event callbacks typed for
-their event (for example, `onClick={(event) => ...}`); callbacks may return
-`void` or a closed Effect. Synchronous callback failures and Effect failures go
-to the nearest enclosing `<ErrorBoundary>` or, if unhandled, `onError`. Running
-callback Effects are interrupted when their element is disposed. Native
-default behavior is not prevented automatically.
+`VirtualList.make` and `VirtualTable.make` are headless, scoped fixed-size
+controllers with read-only windows, ARIA attributes, and keyboard actions. Hosts
+own positioning, scrolling, and resize observation. Collections are snapshotted;
+recreate controllers for changed data/key sets. See
+[`example/Virtualized.tsx`](example/Virtualized.tsx).
 
-Native HTML and SVG tags have element-specific props. `data-*`, `aria-*`, and
-custom-element attributes remain extensible. `createRef<HTMLInputElement>()`
-creates an object ref; callback refs receive the native element when mounted
-and `null` when their subtree is disposed. Refs are assigned after insertion of
-their element and are cleared during disposal.
+## Testing and development
 
-`mount` returns a handle with an asynchronous `dispose()`. Await it when the
-application is shutting down so Effect finalizers (including asynchronous
-resource releases) have completed. The renderer removes only the DOM range it
-mounted; sibling content in the container is left intact. An optional fourth
-argument, `{ onError }`, receives uncaught errors from lifecycle callbacks,
-event handlers, and reactive DOM updates. Props-driven root components receive
-props through that same argument: `mount(App, container, layer, { props: { name:
-"Ada" } })`.
+`Testing.render(appOrClosedJsx)` is a scoped Effect. `Testing.fireEvent`,
+`Testing.fireInput`, and `Testing.waitFor` are Effects; text queries are pure.
+The view's `close` is an Effect, and leaving the test scope awaits cleanup.
+There is no global cleanup registry. Import `Testing` from the root or use the
+`@effect/ui/Testing` / `@effect/ui/testing` subpaths.
 
-## Develop and build
+The testing pyramid, cheapest first:
+
+- Unit and component checks in Happy DOM (`bun run test`): signals, resources,
+  routing, forms, virtualization, and lifecycle/rollback guarantees.
+- Seeded property checks (`test/PropertyTest.ts`, same command): virtualizer
+  geometry invariants, key-token uniqueness, and route-matching laws over
+  generated inputs. Deterministic by seed; no extra test dependency.
+- Integration flows (`test/ConsoleIntegrationTest.tsx`, same command): the
+  `example/Console.tsx` operations console under memory navigation, covering
+  cached queries, invalidation/refresh, forms, and cross-page activity.
+- Packaged-consumer checks (`bun run test:package`): every public ESM entry
+  point imported plus strict NodeNext declaration typechecking of the tarball.
+- Real-browser smoke (`bun run test:browser`): WebDriver-driven reactive,
+  routed, focus, disposal, and image-decode checks. Required per supported
+  engine before release; Happy DOM is not browser evidence.
+- Benchmarks (`bun run bench:runtime`): coalescing/fanout regression assertions
+  plus timing output.
 
 ```bash
 bun install
-bun run dev          # browser demo: state, routing, resources, and virtualization
+bun run dev
 bun run typecheck
-bun run lint         # Oxlint with the better-antislop plugin rules
-bun run format       # Oxfmt write
-bun run format:check # Oxfmt check, no writes
+bun run lint
+bun run format:check
 bun run test
-bun run test:browser   # requires a running Vite server and W3C WebDriver
-bun run bench:runtime  # deterministic coalescing checks plus timing output
-bun run ci             # sequential local CI gate
-bun run build:lib    # ESM package + declarations in dist/
-bun run typecheck:package # verify exports/declarations as a NodeNext consumer
-bun run build        # library build and Vite demo build
+bun run test:browser       # running Vite server + W3C WebDriver required
+bun run bench:runtime
+bun run build:lib
+bun run typecheck:package
+bun run test:package       # Node.js 24+, npm, tar; installed Effect, no registry
+bun run build
+bun run ci                # sequential local CI gate
 ```
 
-The package exports its built ESM entrypoints and TypeScript declarations from
-`dist/`, including the JSX runtimes and `@effect/ui/testing`.
+Module subpaths such as `@effect/ui/Component` support
+`import * as Component from "@effect/ui/Component"`. The built ESM package also
+exports JSX runtimes. Deprecated flat interfaces are isolated at
+`@effect/ui/legacy`; new code should use the namespace API.
 
-The testing subpath exports `render`, `fireEvent`, `fireInput`, `waitFor`, and
-`cleanup`. A rendered view exposes scoped text queries and an awaitable `unmount`;
-`cleanup()` disposes all remaining views and waits for Effect finalizers.
-
-The package remains private while the API is being developed.
-
-GitHub Actions checks pushes and pull requests. A published GitHub Release is
-the only publishing trigger, and its workflow refuses to publish while
-`package.json` is private or its tag does not match the package version. Before
-the first public release, configure npm trusted publishing for the release
-workflow, add the canonical source/issue URLs to package metadata, and explicitly
-remove the private-package guard in `package.json`. See
-[`docs/RELEASING.md`](docs/RELEASING.md).
-
-See [`docs/API.md`](docs/API.md) for the API index,
-[`docs/MIGRATION.md`](docs/MIGRATION.md) for the pre-1.0 migration policy,
-[`docs/ACCESSIBILITY_AND_SECURITY.md`](docs/ACCESSIBILITY_AND_SECURITY.md) for
-application guidance, and [`docs/BROWSERS.md`](docs/BROWSERS.md) for the browser
-matrix and WebDriver smoke instructions. The browser demo in `example/` covers
-signals, forms, routing and lazy routes, metadata, resources/cache, images,
-focus, transitions, and virtualized lists and grids.
+See the [API reference](docs/API.md), [migration guide](docs/MIGRATION.md),
+[accessibility/security guidance](docs/ACCESSIBILITY_AND_SECURITY.md), and
+[browser matrix/smoke instructions](docs/BROWSERS.md). Publishing policy is in
+[docs/RELEASING.md](docs/RELEASING.md).
 
 ## Current boundaries
 
-- Browser DOM only; no server components or SSR.
-- Component render Effects are synchronous; asynchronous subtree initialization
-  uses `<Async>`. `<ErrorBoundary>` handles descendant render, event Effect, and
-  reactive DOM-update failures; lifecycle cleanup errors still follow disposal
-  and mount-level error handling.
-- JSX props cover native scalar DOM properties and common SVG attributes; this
-  is not a complete mapping of every browser-specific DOM property or event.
+- Browser DOM only; no server components, SSR, or hydration.
+- Instance rendering is synchronous; async content belongs in `Async.View`.
+- JSX covers native scalar DOM props and common SVG attributes, not every
+  browser-specific property/event.
+- Raw HTML/content sinks, script elements, SVG animation elements, unsafe URL
+  schemes, and embedded-document `data:` URLs are rejected. These checks are
+  defense in depth, not a universal sanitizer.

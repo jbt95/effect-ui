@@ -5,10 +5,12 @@ export const disposeAfterFailure = (
   disposers: ReadonlyArray<Disposer>,
   host: Host
 ): never => {
-  void combine(disposers)().catch((cleanupError) => {
-    host.reportError(
-      new AggregateError([error, cleanupError], "Rendering failed and cleanup also failed")
-    )
-  })
+  host.trackCleanup(
+    combine(disposers)().catch((cleanupError) => {
+      host.reportError(
+        new AggregateError([error, cleanupError], "Rendering failed and cleanup also failed")
+      )
+    })
+  )
   throw error
 }

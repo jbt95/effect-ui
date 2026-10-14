@@ -1,6 +1,6 @@
 import { Deferred, Effect, Layer, Stream } from "effect"
 import { describe, expect, it, vi } from "vitest"
-import { defineComponent } from "../src/Component.js"
+import { defineComponent } from "../src/component/Legacy.js"
 import { createForm, Form } from "../src/Form.js"
 import { Signal } from "../src/Signal.js"
 import { mount } from "../src/runtime/Mount.js"

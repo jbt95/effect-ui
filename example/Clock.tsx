@@ -1,4 +1,4 @@
-import { defineComponent, Signal } from "@effect/ui"
+import { Component, Signal } from "@effect/ui"
 import { Context, Effect, Layer, Stream } from "effect"
 
 /**
@@ -9,7 +9,7 @@ import { Context, Effect, Layer, Stream } from "effect"
 class Clock extends Context.Service<
   Clock,
   {
-    readonly now: Signal<string>
+    readonly now: Signal.Source<string>
   }
 >()("Clock") {
   static readonly layer = Layer.effect(
@@ -28,16 +28,17 @@ class Clock extends Context.Service<
 
 const currentTime = (): string => new Date().toLocaleTimeString()
 
-const ClockView = defineComponent(() =>
+const ClockView = Component.make(
   Effect.gen(function* () {
     const clock = yield* Clock
 
-    return (
-      <section>
-        <h2>Clock</h2>
-        <p>Now: {clock.now}</p>
-      </section>
-    )
+    return () =>
+      Effect.succeed(
+        <section>
+          <h2>Clock</h2>
+          <p>Now: {clock.now}</p>
+        </section>
+      )
   })
 )
 

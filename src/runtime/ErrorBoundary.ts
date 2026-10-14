@@ -107,6 +107,7 @@ const createBoundaryHost = (State: ErrorBoundaryState): Host => {
     runHandler: (effect, onComplete) =>
       State.Host.runHandler(captureEffect(State, effect), onComplete),
     reportError: (error) => reportBoundaryError(State, error),
+    trackCleanup: State.Host.trackCleanup,
     createScope: State.Host.createScope,
     closeScope: State.Host.closeScope,
     runComponent: State.Host.runComponent,
@@ -179,6 +180,7 @@ const renderInitialBoundary = (State: ErrorBoundaryState): void => {
   } catch (error) {
     State.Error = error
     State.HasError = true
+    removeBetween(State.Start, State.End)
 
     try {
       State.Current = State.Host.renderNode(buildFallback(State), State.Parent, State.End)

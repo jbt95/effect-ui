@@ -21,8 +21,19 @@ not browser compatibility evidence.
 ## WebDriver integration smoke test
 
 The browser smoke page covers reactive updates, routed pending/loaded content,
-active navigation, focus, and awaited disposal. It uses the W3C WebDriver HTTP
+active navigation, focus, awaited disposal, and native image event targets after
+asynchronous decode success/failure. It uses the W3C WebDriver HTTP
 protocol and adds no runtime or test-runner dependency.
+
+The integrated `example/Console.tsx` operations console (routing, cached
+queries, forms, virtualization, activity) is covered by memory-navigation
+integration tests, not by the smoke page; keep it that way unless the smoke
+budget grows. The harness assembles explicit `Application` contracts, acquires `Router.make`
+and `Link.make` with `Navigation.browserLayer`, and awaits `Application.start`
+and handle disposal. Native image checks exercise Event getters, methods, and
+WebIDL setters (`returnValue`/`cancelBubble`) after decode, not just synthetic
+DOM-event behavior. Migrating the harness does not establish an engine pass;
+only an actual WebDriver run does.
 
 1. Start the Vite server in one terminal: `bun run dev -- --host 0.0.0.0`.
 2. Start a W3C WebDriver server with the browser under test.

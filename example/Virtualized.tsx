@@ -1,12 +1,4 @@
-import { createRef, defineComponent, For, onMount, VirtualList, VirtualTable } from "@effect/ui"
-import type {
-  RefObject,
-  VirtualListController,
-  VirtualListRow,
-  VirtualTableCell,
-  VirtualTableController,
-  VirtualTableRow
-} from "@effect/ui"
+import { Component, For, Lifecycle, Ref, VirtualList, VirtualTable } from "@effect/ui"
 import { Effect } from "effect"
 
 interface Person {
@@ -50,50 +42,60 @@ const TableViewportStyle = {
 } as const
 
 const ObserveListResize = (
-  List: VirtualListController<Person>,
-  Viewport: RefObject<HTMLDivElement>
+  List: VirtualList.VirtualList<Person>,
+  Viewport: Ref.RefObject<HTMLDivElement>
 ) =>
-  onMount(() => {
-    const Element = Viewport.current
+  Effect.gen(function* () {
+    let Observer: ResizeObserver | undefined
 
-    if (Element === null) return
+    yield* Lifecycle.onCleanup(Effect.sync(() => Observer?.disconnect()))
+    yield* Lifecycle.onMount(
+      Effect.sync(() => {
+        const Element = Viewport.current
 
-    const Observer = new ResizeObserver((Entries) => {
-      const Bounds = Entries[0]?.contentRect
+        if (Element === null) return
 
-      if (Bounds !== undefined) void Effect.runPromise(List.resize(Bounds.height))
-    })
+        Observer = new ResizeObserver((Entries) => {
+          const Bounds = Entries[0]?.contentRect
 
-    Observer.observe(Element)
+          if (Bounds !== undefined) void Effect.runPromise(List.resize(Bounds.height))
+        })
 
-    return () => Observer.disconnect()
+        Observer.observe(Element)
+      })
+    )
   })
 
 const ObserveTableResize = (
-  Table: VirtualTableController<Person, MetricColumn>,
-  Viewport: RefObject<HTMLDivElement>
+  Table: VirtualTable.VirtualTable<Person, MetricColumn>,
+  Viewport: Ref.RefObject<HTMLDivElement>
 ) =>
-  onMount(() => {
-    const Element = Viewport.current
+  Effect.gen(function* () {
+    let Observer: ResizeObserver | undefined
 
-    if (Element === null) return
+    yield* Lifecycle.onCleanup(Effect.sync(() => Observer?.disconnect()))
+    yield* Lifecycle.onMount(
+      Effect.sync(() => {
+        const Element = Viewport.current
 
-    const Observer = new ResizeObserver((Entries) => {
-      const Bounds = Entries[0]?.contentRect
+        if (Element === null) return
 
-      if (Bounds !== undefined) {
-        void Effect.runPromise(Table.resize(Bounds.height, Bounds.width))
-      }
-    })
+        Observer = new ResizeObserver((Entries) => {
+          const Bounds = Entries[0]?.contentRect
 
-    Observer.observe(Element)
+          if (Bounds !== undefined) {
+            void Effect.runPromise(Table.resize(Bounds.height, Bounds.width))
+          }
+        })
 
-    return () => Observer.disconnect()
+        Observer.observe(Element)
+      })
+    )
   })
 
 const HandleListKeyDown = (
-  List: VirtualListController<Person>,
-  Viewport: RefObject<HTMLDivElement>,
+  List: VirtualList.VirtualList<Person>,
+  Viewport: Ref.RefObject<HTMLDivElement>,
   EventValue: KeyboardEvent
 ) =>
   List.onKeyDown({
@@ -110,8 +112,8 @@ const HandleListKeyDown = (
   )
 
 const HandleTableKeyDown = (
-  Table: VirtualTableController<Person, MetricColumn>,
-  Viewport: RefObject<HTMLDivElement>,
+  Table: VirtualTable.VirtualTable<Person, MetricColumn>,
+  Viewport: Ref.RefObject<HTMLDivElement>,
   EventValue: KeyboardEvent
 ) =>
   Table.onKeyDown({
@@ -132,7 +134,10 @@ const HandleTableKeyDown = (
     })
   )
 
-const RenderPersonRow = (List: VirtualListController<Person>, Row: VirtualListRow<Person>) => (
+const RenderPersonRow = (
+  List: VirtualList.VirtualList<Person>,
+  Row: VirtualList.VirtualListRow<Person>
+) => (
   <div
     {...List.optionAttributes(Row)}
     onClick={List.setActive(Row.index)}
@@ -152,8 +157,8 @@ const RenderPersonRow = (List: VirtualListController<Person>, Row: VirtualListRo
 )
 
 const RenderPeopleList = (
-  List: VirtualListController<Person>,
-  Viewport: RefObject<HTMLDivElement>
+  List: VirtualList.VirtualList<Person>,
+  Viewport: Ref.RefObject<HTMLDivElement>
 ) => (
   <section aria-labelledby="people-list-title">
     <h3 id="people-list-title">Virtualized people list</h3>
@@ -167,17 +172,17 @@ const RenderPeopleList = (
       onKeyDown={(EventValue) => HandleListKeyDown(List, Viewport, EventValue)}
     >
       <div style={{ height: `${List.totalSize}px`, position: "relative" }}>
-        <For each={List.rows} keyOf={(Row) => Row.key}>
+        <For.View each={List.rows} keyOf={(Row) => Row.key}>
           {(Row) => RenderPersonRow(List, Row)}
-        </For>
+        </For.View>
       </div>
     </div>
   </section>
 )
 
 const RenderMetricCell = (
-  Table: VirtualTableController<Person, MetricColumn>,
-  Cell: VirtualTableCell<MetricColumn>,
+  Table: VirtualTable.VirtualTable<Person, MetricColumn>,
+  Cell: VirtualTable.VirtualTableCell<MetricColumn>,
   PersonValue: Person
 ) => (
   <div
@@ -200,22 +205,22 @@ const RenderMetricCell = (
 )
 
 const RenderMetricRow = (
-  Table: VirtualTableController<Person, MetricColumn>,
-  Row: VirtualTableRow<Person, MetricColumn>
+  Table: VirtualTable.VirtualTable<Person, MetricColumn>,
+  Row: VirtualTable.VirtualTableRow<Person, MetricColumn>
 ) => (
   <div
     {...Table.rowAttributes(Row)}
     style={{ position: "absolute", top: `${Row.start}px`, height: "40px" }}
   >
-    <For each={Row.cells} keyOf={(Cell) => Cell.key}>
+    <For.View each={Row.cells} keyOf={(Cell) => Cell.key}>
       {(Cell) => RenderMetricCell(Table, Cell, Row.item)}
-    </For>
+    </For.View>
   </div>
 )
 
 const RenderMetricsGrid = (
-  Table: VirtualTableController<Person, MetricColumn>,
-  Viewport: RefObject<HTMLDivElement>
+  Table: VirtualTable.VirtualTable<Person, MetricColumn>,
+  Viewport: Ref.RefObject<HTMLDivElement>
 ) => (
   <section aria-labelledby="metrics-grid-title">
     <h3 id="metrics-grid-title">Two-axis virtualized grid</h3>
@@ -235,15 +240,15 @@ const RenderMetricsGrid = (
           position: "relative"
         }}
       >
-        <For each={Table.rows} keyOf={(Row) => Row.key}>
+        <For.View each={Table.rows} keyOf={(Row) => Row.key}>
           {(Row) => RenderMetricRow(Table, Row)}
-        </For>
+        </For.View>
       </div>
     </div>
   </section>
 )
 
-const PeopleListView = defineComponent(() =>
+const PeopleListView = Component.local(() =>
   Effect.gen(function* () {
     const List = yield* VirtualList.make({
       id: "example-people-list",
@@ -255,7 +260,7 @@ const PeopleListView = defineComponent(() =>
       overscan: 3
     })
 
-    const Viewport = createRef<HTMLDivElement>()
+    const Viewport = Ref.make<HTMLDivElement>()
 
     yield* ObserveListResize(List, Viewport)
 
@@ -263,7 +268,7 @@ const PeopleListView = defineComponent(() =>
   })
 )
 
-const MetricsGridView = defineComponent(() =>
+const MetricsGridView = Component.local(() =>
   Effect.gen(function* () {
     const Table = yield* VirtualTable.make({
       id: "example-metrics-table",
@@ -279,7 +284,7 @@ const MetricsGridView = defineComponent(() =>
       overscan: 2
     })
 
-    const Viewport = createRef<HTMLDivElement>()
+    const Viewport = Ref.make<HTMLDivElement>()
 
     yield* ObserveTableResize(Table, Viewport)
 
@@ -287,7 +292,7 @@ const MetricsGridView = defineComponent(() =>
   })
 )
 
-export const VirtualizedView = defineComponent(() => (
+export const VirtualizedView = Component.sync(() => (
   <section aria-labelledby="virtualization-title">
     <h2 id="virtualization-title">Large collections</h2>
     <p>

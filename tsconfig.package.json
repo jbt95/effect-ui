@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "jsx": "react-jsx",
     "jsxImportSource": "@effect/ui",
     "strict": true,
-    "skipLibCheck": true,
+    "skipLibCheck": false,
     "noEmit": true,
     "types": [],
     "paths": {}

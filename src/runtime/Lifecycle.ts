@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import { Context, Effect } from "effect"
 import type { Host, Disposer } from "../Control.js"
 
 export type LifecycleCallback = () => unknown
@@ -11,63 +11,73 @@ export interface LifecycleSlot {
   PendingMounts: Promise<void>
 }
 
-let CurrentSlot: LifecycleSlot | null = null
+export class Service extends Context.Service<Service, LifecycleSlot>()("@effect/ui/Lifecycle") {}
+
+/** Effect-native post-commit action, bound to the registering instance's context. */
+export const mounted = Effect.fnUntraced(function* <A, E, R>(action: Effect.Effect<A, E, R>) {
+  const slot = yield* Service
+  const context = yield* Effect.context<R>()
+  slot.Mounts.push(() => Effect.runPromise(Effect.provideContext(action, context)))
+})
+
+/** Scoped release. Handle expected failures before registering cleanup. */
+export const cleanup = <A, R>(action: Effect.Effect<A, never, R>) =>
+  Effect.addFinalizer(() => action)
 
 /** Register a callback to run when the enclosing component's DOM is removed. */
-export const onCleanup = (Callback: LifecycleCallback): Effect.Effect<void> =>
-  Effect.sync(() => {
-    if (CurrentSlot !== null) CurrentSlot.Cleanups.push(Callback)
+export const onCleanup = (Callback: LifecycleCallback): Effect.Effect<void, never, Service> =>
+  Effect.gen(function* () {
+    const slot = yield* Service
+    slot.Cleanups.push(Callback)
   })
 
 /** Register a callback to run after the enclosing component's DOM is mounted. */
-export const onMount = (Callback: LifecycleCallback): Effect.Effect<void> =>
-  Effect.sync(() => {
-    if (CurrentSlot !== null) CurrentSlot.Mounts.push(Callback)
+export const onMount = (Callback: LifecycleCallback): Effect.Effect<void, never, Service> =>
+  Effect.gen(function* () {
+    const slot = yield* Service
+    slot.Mounts.push(Callback)
   })
 
 export const CleanupCallbacks = (
   Callbacks: ReadonlyArray<LifecycleCallback>
 ): ReadonlyArray<Disposer> =>
   Callbacks.map((Callback) => async () => {
-    await Callback()
+    const result = Callback()
+
+    if (Effect.isEffect(result))
+      throw new TypeError("Use Lifecycle.onCleanup(action) for Effect cleanup")
+    await result
   })
+
+const RunMountCallback = (
+  Callback: LifecycleCallback,
+  RendererHost: Pick<Host, "reportError">
+): Promise<void> | undefined => {
+  try {
+    const Result = Callback()
+
+    if (Effect.isEffect(Result))
+      throw new TypeError("Use Lifecycle.onMount(action) for Effect mount actions")
+
+    if (Result === undefined) return
+
+    return Promise.resolve(Result).then(() => undefined, RendererHost.reportError)
+  } catch (error) {
+    RendererHost.reportError(error)
+  }
+}
 
 export const RunMountCallbacks = (
   Callbacks: ReadonlyArray<LifecycleCallback>,
-  RendererHost: Host
+  RendererHost: Pick<Host, "reportError">
 ): Promise<void> => {
-  let Pending: Array<Promise<void>> | undefined
+  const Pending: Array<Promise<void>> = []
 
   for (const Callback of Callbacks) {
-    try {
-      const Result = Callback()
+    const Settled = RunMountCallback(Callback, RendererHost)
 
-      if (Result !== undefined) {
-        const Settled = Promise.resolve(Result).then(
-          () => undefined,
-          (CallbackError) => {
-            RendererHost.reportError(CallbackError)
-          }
-        )
-
-        if (Pending === undefined) Pending = [Settled]
-        else Pending.push(Settled)
-      }
-    } catch (CallbackError) {
-      RendererHost.reportError(CallbackError)
-    }
+    if (Settled !== undefined) Pending.push(Settled)
   }
 
-  return Pending === undefined ? NoPendingMounts : Promise.all(Pending).then(() => undefined)
-}
-
-export const withLifecycleSlot = <A>(Slot: LifecycleSlot, Run: () => A): A => {
-  const PreviousSlot = CurrentSlot
-  CurrentSlot = Slot
-
-  try {
-    return Run()
-  } finally {
-    CurrentSlot = PreviousSlot
-  }
+  return Pending.length === 0 ? NoPendingMounts : Promise.all(Pending).then(() => undefined)
 }

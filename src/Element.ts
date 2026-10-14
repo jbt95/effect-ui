@@ -1,5 +1,7 @@
 import type { Effect } from "effect"
 import type { Disposer, Host } from "./Control.js"
+import type { Local } from "./Component.js"
+import type { Source } from "./Signal.js"
 
 /** The fragment marker. `<></>` compiles to `jsx(Fragment, { children })`. */
 export const Fragment = Symbol.for("@effect/ui/Fragment")
@@ -23,6 +25,15 @@ export interface ControlTag {
 
 export type ElementType = string | typeof Fragment | ComponentTag | ControlTag
 
+/** Ordinary JSX accepts only tags with already-acquired application dependencies. */
+export interface ClosedComponentTag {
+  (props: never): Element
+  readonly type: "component"
+  readonly render: (props: never) => Effect.Effect<Element, unknown, Local>
+}
+
+export type ClosedElementType = string | typeof Fragment | ClosedComponentTag | ControlTag
+
 /** A JSX element descriptor produced by the jsx runtime. */
 export interface Element {
   readonly type: ElementType
@@ -36,9 +47,7 @@ export interface Element {
  * union member can name it; only the readable `value` is required, which keeps
  * the signal's own variance out of the JSX contract.
  */
-export interface SignalChild {
-  readonly value: unknown
-}
+export type SignalChild = Source<string | number | boolean | null | undefined>
 
 export type ElementChild =
   | Element
@@ -67,7 +76,7 @@ export type ClassValue = string | boolean | null | undefined | readonly ClassVal
 
 export type StyleLike = string | { readonly [K: string]: string | number }
 
-export type Reactive<A> = A | SignalChild
+export type Reactive<A> = A | Source<A>
 
 /** Closed Effect action accepted by an event prop without receiving the event. */
 export type EffectEventHandler = Effect.Effect<unknown, unknown, never>
@@ -113,6 +122,7 @@ export type ElementAttributeValue =
   | StyleLike
   | EventHandler
   | RefAttributeValue
+  | Source<unknown>
 
 type NativeAttributeValue = string | number | boolean | null | undefined
 

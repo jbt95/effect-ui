@@ -1,8 +1,82 @@
 import { Effect, Layer } from "effect"
 import { describe, expect, it, vi } from "vitest"
-import { defineComponent, Image, mount } from "../src/Index.js"
+import { defineComponent, Image, mount } from "../src/Legacy.js"
+import { DeferredPromise } from "./DeferredPromise.js"
 
 describe("Image", () => {
+  it.each(["success", "failure"] as const)(
+    "preserves the native image target for delayed decode %s callbacks",
+    async (Outcome) => {
+      const Decode = DeferredPromise()
+      const Callback = vi.fn()
+      const Errors: Array<unknown> = []
+      const Container = document.createElement("div")
+
+      const App = defineComponent(() => (
+        <Image
+          src="/delayed.webp"
+          alt="Diagram"
+          width={320}
+          height={180}
+          decode
+          onLoad={(EventValue) => {
+            EventValue.returnValue = false
+            EventValue.cancelBubble = true
+            EventValue.preventDefault()
+            Callback("success", EventValue.currentTarget, EventValue.type, EventValue.target)
+          }}
+          onError={(EventValue) => {
+            EventValue.returnValue = false
+            EventValue.cancelBubble = true
+            EventValue.preventDefault()
+            Callback("failure", EventValue.currentTarget, EventValue.type, EventValue.target)
+          }}
+        />
+      ))
+
+      const Handle = mount(App, Container, Layer.empty, { onError: (Error) => Errors.push(Error) })
+      const ImageElement = Container.querySelector("img")!
+      const LoadEvent = new Event("load", { cancelable: true })
+      // Model WebIDL setters: they must be invoked on the actual native event, not a proxy.
+      Object.defineProperties(LoadEvent, {
+        returnValue: {
+          configurable: true,
+          set(Value: boolean) {
+            if (this !== LoadEvent) throw new TypeError("Invalid Event receiver")
+
+            if (!Value) LoadEvent.preventDefault()
+          }
+        },
+        cancelBubble: {
+          configurable: true,
+          set(Value: boolean) {
+            if (this !== LoadEvent) throw new TypeError("Invalid Event receiver")
+
+            if (Value) LoadEvent.stopPropagation()
+          }
+        }
+      })
+      ImageElement.decode = vi.fn(() => Decode.promise)
+      ImageElement.dispatchEvent(LoadEvent)
+      // Happy DOM does not always clear this field; model the native post-dispatch value.
+      Object.defineProperty(LoadEvent, "currentTarget", { configurable: true, value: null })
+
+      try {
+        expect(Callback).not.toHaveBeenCalled()
+
+        if (Outcome === "success") Decode.resolve()
+        else Decode.reject(new Error("decode failed"))
+
+        await vi.waitFor(() => expect(Callback).toHaveBeenCalledOnce())
+        expect(Callback).toHaveBeenCalledWith(Outcome, ImageElement, "load", ImageElement)
+        expect(LoadEvent.defaultPrevented).toBe(true)
+        expect(Errors).toEqual([])
+      } finally {
+        await Handle.dispose()
+      }
+    }
+  )
+
   it("renders native loading hints and reserves required intrinsic dimensions", async () => {
     const container = document.createElement("div")
 

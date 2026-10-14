@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { afterEach, describe, expect, it } from "vitest"
 import { Signal } from "../src/Signal.js"
-import { cleanup, fireInput, render, waitFor } from "../src/Testing.js"
+import { cleanup, fireInput, render, waitFor } from "../src/TestingLegacy.js"
 
 afterEach(async () => cleanup())
 
